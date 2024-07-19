@@ -26,7 +26,7 @@ void UMinionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 			bShouldMove = (!Acceleration.Equals(FVector(0.f, 0.f, 0.f)) && CurrentSpeed > 3.f) ? true : false;
 			bIsAccelerating = Acceleration.Length() > 0 ? true : false;
 
-			bIsDead = EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Dead);
+			bIsDead = EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Death);
 		}
 	}
 }

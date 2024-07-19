@@ -15,13 +15,13 @@ enum class ETeamSideBase : uint8
 ENUM_CLASS_FLAGS(ETeamSideBase);
 
 // 플레이어 상태를 나타내는 enum 클래스
-UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+UENUM(BlueprintType)
 enum class EPlayerState : uint8
 {
-	Type	= 0x00		UMETA(Hidden),
-	Alive	= 0x01 << 0 UMETA(DisplayName = "Alive"),
-	Dead	= 0x01 << 1 UMETA(DisplayName = "Dead"),
-	Exiting = 0x01 << 1 UMETA(DisplayName = "Exiting"),
+	Type,
+	Alive,
+	Death,
+	Exiting,
 };
 ENUM_CLASS_FLAGS(EPlayerState);
 

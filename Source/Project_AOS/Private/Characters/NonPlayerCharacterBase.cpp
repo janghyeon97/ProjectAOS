@@ -77,7 +77,7 @@ void ANonPlayerCharacterBase::SetWidget(UUserWidgetBase* InUserWidgetBase)
 	}
 }
 
-void ANonPlayerCharacterBase::GetCrowdControl(ECrowdControlBase InCondition, float InDuration, float InPercent)
+void ANonPlayerCharacterBase::GetCrowdControl(EBaseCrowdControl InCondition, float InDuration, float InPercent)
 {
 	float Percent = FMath::Clamp<float>(InPercent, 0, 1);
 
@@ -88,10 +88,10 @@ void ANonPlayerCharacterBase::GetCrowdControl(ECrowdControlBase InCondition, flo
 		{
 			switch (InCondition)
 			{
-			case ECrowdControlBase::None:
+			case EBaseCrowdControl::None:
 
 				break;
-			case ECrowdControlBase::Slow:
+			case EBaseCrowdControl::Slow:
 				LastMovementSpeed = StatComponent->GetMovementSpeed();
 				ChangeMovementSpeed(0, LastMovementSpeed * (1 - Percent));
 
@@ -108,22 +108,22 @@ void ANonPlayerCharacterBase::GetCrowdControl(ECrowdControlBase InCondition, flo
 				);
 
 				break;
-			case ECrowdControlBase::Cripple:
+			case EBaseCrowdControl::Cripple:
 
 				break;
-			case ECrowdControlBase::Silence:
+			case EBaseCrowdControl::Silence:
 
 				break;
-			case ECrowdControlBase::Blind:
+			case EBaseCrowdControl::Blind:
 
 				break;
-			case ECrowdControlBase::BlockedSight:
+			case EBaseCrowdControl::BlockedSight:
 
 				break;
-			case ECrowdControlBase::Snare:
+			case EBaseCrowdControl::Snare:
 
 				break;
-			case ECrowdControlBase::Stun:
+			case EBaseCrowdControl::Stun:
 				AnimInstance->StopAllMontages(0.1f);
 				AnimInstance->PlayMontage(Stun_Montage);
 				Blackboard->SetValueAsBool(AIController->IsGetCrowdControl, true);
@@ -143,7 +143,7 @@ void ANonPlayerCharacterBase::GetCrowdControl(ECrowdControlBase InCondition, flo
 				);
 
 				break;
-			case ECrowdControlBase::Taunt:
+			case EBaseCrowdControl::Taunt:
 
 				break;
 			}

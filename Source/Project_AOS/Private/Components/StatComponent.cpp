@@ -219,9 +219,9 @@ void UStatComponent::SetCurrentLevel(int32 InCurrentLevel)
 
 	OnCurrentLevelChanged_NetMulticast(CurrentLevel, NewCurrentLevel);
 
-	SetMaxHP(GameInstance->GetCharacterStat(ChampionIndex, NewCurrentLevel)->MaxHP);
+	SetMaxHP(MaxHP + (GameInstance->GetCharacterStat(ChampionIndex, NewCurrentLevel)->MaxHP - GameInstance->GetCharacterStat(ChampionIndex, CurrentLevel)->MaxHP));
 	SetCurrentHP(CurrentHP + (GameInstance->GetCharacterStat(ChampionIndex, NewCurrentLevel)->MaxHP - GameInstance->GetCharacterStat(ChampionIndex, CurrentLevel)->MaxHP));
-	SetMaxMP(GameInstance->GetCharacterStat(ChampionIndex, NewCurrentLevel)->MaxMP);
+	SetMaxMP(MaxMP + (GameInstance->GetCharacterStat(ChampionIndex, NewCurrentLevel)->MaxMP - GameInstance->GetCharacterStat(ChampionIndex, CurrentLevel)->MaxMP));
 	SetCurrentMP(CurrentMP + (GameInstance->GetCharacterStat(ChampionIndex, NewCurrentLevel)->MaxMP - GameInstance->GetCharacterStat(ChampionIndex, CurrentLevel)->MaxMP));
 	SetMaxEXP(GameInstance->GetCharacterStat(ChampionIndex, NewCurrentLevel)->MaxEXP);
 	SetCurrentEXP(CurrentEXP);
@@ -473,11 +473,8 @@ void UStatComponent::OnMovementSpeedChanged_NetMulticast_Implementation(float In
 
 void UStatComponent::OnRep_CharacterStatReplicated()
 {
-	UE_LOG(LogTemp, Log, TEXT("[UStatComponent::OnRep_CharacterStatReplicated] Calling OnRep_CharacterStatReplicated."));
-
 	if (OnCharacterStatReplicated.IsBound())
 	{
-		UE_LOG(LogTemp, Log, TEXT("[UStatComponent::OnRep_CharacterStatReplicated] Broadcast OnCharacterStatReplicated."));
 		OnCharacterStatReplicated.Broadcast();
 	}
 }

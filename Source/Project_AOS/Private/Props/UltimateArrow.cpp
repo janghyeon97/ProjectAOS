@@ -80,80 +80,58 @@ void AUltimateArrow::OnBeginOverlap(UPrimitiveComponent* OverlappedComponent, AA
 {
 	Super::OnBeginOverlap(OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
 
-	if (HasAuthority())
+	if (!HasAuthority() || OtherActor == Owner || OtherActor == this)
 	{
-		if (OtherActor != Owner && OtherActor != this)
-		{
-			UE_LOG(LogTemp, Error, TEXT("[Server] %s Overlap Actor %s "), *GetName(), *OtherActor->GetName());
+		return;
+	}
 
-			FAttachmentTransformRules AttachmentRules(EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, true);
-			ECollisionChannel CollisionChannel = OtherComp->GetCollisionObjectType();
+	UE_LOG(LogTemp, Error, TEXT("[Server] %s Overlap Actor %s "), *GetName(), *OtherActor->GetName());
 
-			switch (CollisionChannel)
-			{
-			case ECC_WorldStatic:
-			case ECC_WorldDynamic:
-				ProjectileMovement->StopMovementImmediately();
-				ProjectileMovement->ProjectileGravityScale = 0.0f;
+	ECollisionChannel CollisionChannel = OtherComp->GetCollisionObjectType();
+	if (CollisionChannel == ECC_WorldStatic || CollisionChannel == ECC_WorldDynamic)
+	{
+		HandleWorldCollision(OtherActor);
+	}
+	else if (CollisionChannel == ECC_GameTraceChannel1)
+	{
+		HandleAOSCharacterCollision(OtherActor);
 
-				BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-				ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		// Attach to nearest enemy mesh
+		AttachToNearestEnemyMesh(SweepResult.ImpactPoint);
+	}
+}
 
-				AttachToActor(OtherActor, AttachmentRules);
-				break;
+void AUltimateArrow::HandleWorldCollision(AActor* OtherActor)
+{
+	// Stop movement and disable collisions
+	ProjectileMovement->StopMovementImmediately();
+	ProjectileMovement->ProjectileGravityScale = 0.0f;
+	BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-			case ECC_GameTraceChannel1:
-				ACharacterBase* HitCharacter = Cast<ACharacterBase>(OtherActor);
-				if (::IsValid(HitCharacter))
-				{
-					if (EnumHasAnyFlags(HitCharacter->ObjectType, EObjectType::Player) && HitCharacter->TeamSide != OwnerCharacter->TeamSide)
-					{
-						ProjectileMovement->StopMovementImmediately();
-						ProjectileMovement->ProjectileGravityScale = 0.0f;
+	// Attach to the other actor
+	FAttachmentTransformRules AttachmentRules(EAttachmentRule::KeepWorld, true);
+	AttachToActor(OtherActor, AttachmentRules);
+}
 
-						BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-						ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+void AUltimateArrow::HandleAOSCharacterCollision(AActor* OtherActor)
+{
+	ACharacterBase* HitCharacter = Cast<ACharacterBase>(OtherActor);
+	if (!IsValid(HitCharacter))
+	{
+		return;
+	}
 
-						OnArrowHit_NetMulticast(OtherActor, CollisionChannel);
+	if (EnumHasAnyFlags(HitCharacter->ObjectType, EObjectType::Player) && HitCharacter->TeamSide != OwnerCharacter->TeamSide)
+	{
+		// Stop movement and disable collisions
+		ProjectileMovement->StopMovementImmediately();
+		ProjectileMovement->ProjectileGravityScale = 0.0f;
+		BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-						FCollisionQueryParams params;
-						params.TraceTag = FName("Name_None");
-						params.bTraceComplex = false;
-						params.AddIgnoredActor(this);
-
-						OutHits.Empty();
-
-						bool bResult = GetWorld()->OverlapMultiByChannel(
-							OutHits,
-							GetActorLocation(),
-							FQuat::Identity,
-							ECC_GameTraceChannel3,
-							FCollisionShape::MakeSphere(200.f),
-							params
-						);
-
-						if (bResult)
-						{
-							for (const auto& OutHit : OutHits)
-							{
-								ACharacterBase* OverlapCharacter = Cast<ACharacterBase>(OutHit.GetActor());
-								{
-									UE_LOG(LogTemp, Warning, TEXT("[Server] %s Overlap Actor %s "), *GetName(), *OverlapCharacter->GetName());
-
-									if (::IsValid(OverlapCharacter))
-									{
-										if (OverlapCharacter->TeamSide != OwnerCharacter->TeamSide)
-										{
-											ApplyDamage(OverlapCharacter, 0.0f);
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+		// Notify hit via multicast
+		OnArrowHit_NetMulticast(OtherActor, ECC_GameTraceChannel1);
 	}
 }
 

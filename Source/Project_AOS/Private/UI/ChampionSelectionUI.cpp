@@ -153,7 +153,7 @@ void UChampionSelectionUI::UpdatePlayerSelection(ETeamSideBase Team, const int32
 		UpdatePlayerSelectionUI(BlueTeamPlayers, PlayerIndex, InPlayerName, Texture, InChampionName, InChampionPosition, Color, bShowChampionDetails);
 		break;
 	case ETeamSideBase::Red:
-		UpdatePlayerSelectionUI(RedTeamPlayers, PlayerIndex, InPlayerName, Texture, InChampionName, InChampionPosition, Color, bShowChampionDetails);
+		UpdatePlayerSelectionUI(RedTeamPlayers, PlayerIndex -5, InPlayerName, Texture, InChampionName, InChampionPosition, Color, bShowChampionDetails);
 		break;
 	}
 }

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
-enum class ECrowdControlBase : uint32
+enum class EBaseCrowdControl : uint32
 {
 	None			= 0x00,
 	Slow			= 0x01 << 0,	// 이동속도 둔화
@@ -17,7 +17,7 @@ enum class ECrowdControlBase : uint32
 	Stun			= 0x01 << 6,	// 기절
 	Taunt			= 0x01 << 7,	// 도발
 };
-ENUM_CLASS_FLAGS(ECrowdControlBase);
+ENUM_CLASS_FLAGS(EBaseCrowdControl);
 
 /**
  * 

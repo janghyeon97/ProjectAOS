@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Structs/AbilityData.h"
 #include "AbilityStatComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAbilityQCooldownChangedDelegate, float, MaxCooldown, float, CurrentCooldown);
@@ -18,21 +19,14 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAbilityLevelChangedDelegate, enum EAbili
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVisibleDescriptionDelegate, FName, String);
 
-UENUM(BlueprintType)
-enum class EAbilityTimerStart : uint8
-{
-	None = 0x00		UMETA(Hidden),
-	OnAbilityStart = 0x01 << 0 UMETA(DisplayName = "On Ability Start"),
-	OnMaxUses = 0x01 << 2 UMETA(DisplayName = "On Max Uses")
-};
 
 USTRUCT(BlueprintType)
-struct FAbilityAttributes
+struct FAbilityDetails
 {
 	GENERATED_BODY()
 
 public:
-	FAbilityAttributes()
+	FAbilityDetails()
 		: Name(FString())
 		, Description(FString())
 		, MaxLevel(0)
@@ -74,74 +68,6 @@ public:
 	bool bIsUpgradable;
 };
 
-USTRUCT(BlueprintType)
-struct FAbilityStatTable
-{
-	GENERATED_BODY()
-
-public:
-	FAbilityStatTable()
-		: CurrentLevel(0)
-		, InstanceIndex(0)
-		, Ability_AttackDamage(0.f)
-		, Ability_AbilityPower(0.f)
-		, Ability_AD_Ratio(0.f)
-		, Ability_AP_Ratio(0.f)
-		, Cooldown(0.f)
-		, Cost(0.f)
-		, ReuseDuration(0.f)
-		, UniqueValueName(TArray<FString>())
-		, UniqueValue(TArray<float>())
-	{
-	}
-
-	bool operator==(const FAbilityStatTable& Other) const
-	{
-		return Name == Other.Name;
-	}
-
-	bool IsValid() const
-	{
-		return !Name.IsEmpty();
-	}
-
-public:
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	FString Name;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	int32 CurrentLevel;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	int32 InstanceIndex;
-
-	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	float Ability_AttackDamage;
-
-	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	float Ability_AbilityPower;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	float Ability_AD_Ratio;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	float Ability_AP_Ratio;
-
-	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	float Cooldown;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	float Cost;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	float ReuseDuration;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	TArray<FString> UniqueValueName;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	TArray<float> UniqueValue;
-};
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_AOS_API UAbilityStatComponent : public UActorComponent
@@ -162,9 +88,9 @@ public:
 	void InitializeAbility(EAbilityID AbilityID, const int32 InLevel);
 	void InitAbilityStatComponent(class UStatComponent* InStatComponent, const int32 CharacterIndex);
 
-	FAbilityAttributes& GetAbilityInfomation(EAbilityID AbilityID);
-	TArray<FAbilityStatTable>& GetAbilityStatTable(EAbilityID AbilityID);
-	FAbilityStatTable& GetAbilityStatTable(EAbilityID AbilityID, int32 InstanceIndex);
+	FAbilityDetails& GetAbilityInfomation(EAbilityID AbilityID);
+	TArray<FAbilityStatTable>& GetAbilityStatTables(EAbilityID AbilityID);
+	const FAbilityStatTable& GetAbilityStatTable(EAbilityID AbilityID) const;
 	bool IsAbilityReady(EAbilityID AbilityID);
 	void BanUseAbilityFewSeconds(float Seconds);
 
@@ -219,11 +145,11 @@ public:
 	FOnUpgradeWidgetVisibilityChangedDelegate OnUpgradeWidgetVisibilityChanged;
 
 private:
-	void InitializeAbility(EAbilityID AbilityID, FAbilityAttributes& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, const int32 InLevel);
-	void InitializeAbilityInfomation(EAbilityID AbilityID, FAbilityAttributes& AbilityInfo, int32 CharacterIndex);
+	void InitializeAbility(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, const int32 InLevel);
+	void InitializeAbilityInformation(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, int32 CharacterIndex);
 
-	void UseSpecificAbility(FAbilityAttributes& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, float& Cooldown, float& LastUseTime, float CurrentTime, EAbilityID AbilityID);
-	void UpdateAbilityUpgradeStatus(EAbilityID AbilityID, FAbilityAttributes& AbilityInfo, int32 InNewCurrentLevel);
+	void UseSpecificAbility(FAbilityDetails& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, float& Cooldown, float& LastUseTime, float CurrentTime, EAbilityID AbilityID);
+	void UpdateAbilityUpgradeStatus(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, int32 InNewCurrentLevel);
 
 	UPROPERTY()
 	TObjectPtr<class UAOSGameInstance> GameInstance;
@@ -235,19 +161,19 @@ private:
 	TWeakObjectPtr<class UStatComponent> StatComponent;
 
 	UPROPERTY(Replicated)
-	FAbilityAttributes Ability_Q_Info;
+	FAbilityDetails Ability_Q_Info;
 
 	UPROPERTY(Replicated)
-	FAbilityAttributes Ability_E_Info;
+	FAbilityDetails Ability_E_Info;
 
 	UPROPERTY(Replicated)
-	FAbilityAttributes Ability_R_Info;
+	FAbilityDetails Ability_R_Info;
 
 	UPROPERTY(Replicated)
-	FAbilityAttributes Ability_LMB_Info;
+	FAbilityDetails Ability_LMB_Info;
 
 	UPROPERTY(Replicated)
-	FAbilityAttributes Ability_RMB_Info;
+	FAbilityDetails Ability_RMB_Info;
 
 	UPROPERTY(Replicated)
 	TArray<FAbilityStatTable> Ability_Q_Stat;

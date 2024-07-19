@@ -29,6 +29,10 @@ protected:
 
 	virtual void OnParticleEnded(UParticleSystemComponent* ParticleSystemComponent);
 
+	void HandleWorldCollision(AActor* OtherActor);
+
+	void HandleAOSCharacterCollision(AActor* OtherActor);
+
 private:
 	TArray<FOverlapResult> OutHits;
 };

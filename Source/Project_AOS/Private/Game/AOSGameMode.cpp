@@ -14,7 +14,6 @@
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Structs/MinionData.h"
 #include "Item/Item.h"
 
 
@@ -50,6 +49,7 @@ void AAOSGameMode::BeginPlay()
 	}
 
 	LoadItemData();
+	LoadMinionData();
 	SendLoadedItemsToClients();
 
 	GetWorldTimerManager().SetTimer(LoadTimerHandle, this, &AAOSGameMode::StartGame, MaxLoadWaitTime, false);
@@ -126,6 +126,25 @@ void AAOSGameMode::Logout(AController* Exiting)
 void AAOSGameMode::PlayerLoaded(APlayerController* PlayerController)
 {
 	ConnectedPlayer++;
+}
+
+void AAOSGameMode::LoadGameData()
+{
+	UAOSGameInstance* AOSGameInstance = Cast<UAOSGameInstance>(GetGameInstance());
+	if (!AOSGameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAOSGameMode::LoadGameData] Invalid GameInstance."));
+		return;
+	}
+
+	const UDataTable* DataTable = AOSGameInstance->GetGameDataTable();
+	if (!DataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAOSGameMode::LoadGameData] Invalid DataTable."));
+		return;
+	}
+
+	LoadedGameData = *DataTable->FindRow<FGameDataTableRow>(FName(*FString::FromInt(1)), TEXT(""));
 }
 
 void AAOSGameMode::LoadItemData()
@@ -242,6 +261,40 @@ void AAOSGameMode::LoadPlayerData()
 	}
 }
 
+void AAOSGameMode::LoadMinionData()
+{
+	UAOSGameInstance* AOSGameInstance = Cast<UAOSGameInstance>(GetGameInstance());
+	if (!AOSGameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAOSGameMode::LoadMinionData] Invalid GameInstance."));
+		return;
+	}
+
+	const UDataTable* DataTable = AOSGameInstance->GetMinionDataTable();
+	if (!DataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAOSGameMode::LoadMinionData] Invalid DataTable."));
+		return;
+	}
+
+	// 기존 데이터 클리어
+	LoadedMinions.Empty();
+		
+	TArray<FName> RowNames = DataTable->GetRowNames();
+	for (const FName& RowName : RowNames)
+	{
+		FMinionDataTableRow* MinionData = DataTable->FindRow<FMinionDataTableRow>(RowName, TEXT(""));
+		if (!MinionData)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[AAOSGameMode::LoadMinionData] Failed to find row: %s"), *RowName.ToString());
+			continue;
+		}
+
+		EMinionType MinionType = MinionData->MinionType;
+		LoadedMinions.Add(MinionType, *MinionData);
+	}
+}
+
 void AAOSGameMode::CheckAllPlayersLoaded()
 {
 	bool bAllPlayersLoaded = (NumberOfPlayer == ConnectedPlayer);
@@ -290,6 +343,7 @@ void AAOSGameMode::StartGame()
 				AOSPlayerState->GetSelectedChampionIndex());
 
 			int32 NewIndex = AOSPlayerState->GetSelectedChampionIndex();
+
 			SpawnCharacter(PC, NewIndex > 0 ? NewIndex : 1, AOSPlayerState->TeamSide);
 		}
 	}
@@ -297,7 +351,7 @@ void AAOSGameMode::StartGame()
 	UE_LOG(LogTemp, Log, TEXT("[AAOSGameMode::StartGame] Start Game."));
 
 	int32 GameTimerID = FMath::Rand();
-	auto TimerCallback = [this]() { SpawnMinion(); };
+	auto TimerCallback = [this]() { ActivateSpawnMinion(); };
 
 	AOSGameState->StartGame();
 	SetTimer(GameTimers, BroadcastGameTimerHandles, GameTimerID, TimerCallback, &AAOSGameMode::BroadcastRemainingTime, MinionSpawnInterval, true, MinionSpawnTime);
@@ -346,19 +400,12 @@ void AAOSGameMode::SpawnCharacter(AAOSPlayerController* PlayerController, int32 
 	}
 }
 
-void AAOSGameMode::SpawnMinion()
+void AAOSGameMode::SpawnMinion(EMinionType MinionType)
 {
-	UAOSGameInstance* AOSGameInstance = Cast<UAOSGameInstance>(GetGameInstance());
-	if (!AOSGameInstance)
+	FMinionDataTableRow* MinionDataPtr = LoadedMinions.Find(MinionType);
+	if (!MinionDataPtr)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[AAOSGameMode::SpawnMinion] Invalid GameInstance."));
-		return;
-	}
-
-	FMinionDataTableRow* MeleeMinionData = AOSGameInstance->GetMinionDataTableRow(EMinionType::Melee);
-	if (!MeleeMinionData || !MeleeMinionData->MinionClass)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[AAOSGameMode::SpawnMinion] Invalid melee minion row or MinionClass."));
+		UE_LOG(LogTemp, Error, TEXT("[AAOSGameMode::SpawnMinion] Invalid MinionType: %d"), (int32)MinionType);
 		return;
 	}
 
@@ -371,19 +418,29 @@ void AAOSGameMode::SpawnMinion()
 
 	// Minion 스폰 로직
 	FTransform SpawnTransform = PlayerStart[0]->GetActorTransform();
-	AMinionBase* NewMinion = Cast<AMinionBase>(UGameplayStatics::BeginDeferredActorSpawnFromClass(this, MeleeMinionData->MinionClass, SpawnTransform, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn));
+	AMinionBase* NewMinion = Cast<AMinionBase>(UGameplayStatics::BeginDeferredActorSpawnFromClass(this, MinionDataPtr->MinionClass, SpawnTransform, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn));
 	if (NewMinion)
 	{
 		// SkeletalMeshComponent 유효성 확인
-		if (MeleeMinionData->SkeletalMesh_Down)
+		if (MinionDataPtr->SkeletalMesh_Down)
 		{
-			NewMinion->ReplicatedSkeletalMesh = MeleeMinionData->SkeletalMesh_Down;
-			NewMinion->SetExpBounty(MeleeMinionData->ExpBounty);
-			NewMinion->SetGoldBounty(MeleeMinionData->GoldBounty);
-			NewMinion->SetAnimMontages(MeleeMinionData->Montages);
+			NewMinion->ReplicatedSkeletalMesh = MinionDataPtr->SkeletalMesh_Down;
+			NewMinion->TeamSide = ETeamSideBase::Blue;
+
+			NewMinion->ExperienceShareRadius = LoadedGameData.ExperienceShareRadius;
+			NewMinion->ShareFactor.Add(1, 1.0f);
+			NewMinion->ShareFactor.Add(2, LoadedGameData.ExpShareFactorTwoPlayers);
+			NewMinion->ShareFactor.Add(3, LoadedGameData.ExpShareFactorThreePlayers);
+			NewMinion->ShareFactor.Add(4, LoadedGameData.ExpShareFactorFourPlayers);
+			NewMinion->ShareFactor.Add(5, LoadedGameData.ExpShareFactorFivePlayers);
+
+			NewMinion->SetExpBounty(MinionDataPtr->ExpBounty);
+			NewMinion->SetGoldBounty(MinionDataPtr->GoldBounty);
+			NewMinion->SetAnimMontages(MinionDataPtr->Montages);
 		}
 
 		UGameplayStatics::FinishSpawningActor(NewMinion, SpawnTransform);
+		UE_LOG(LogTemp, Log, TEXT("[AAOSGameMode::SpawnMinion] Spawned minion of type: %d"), (int32)MinionType);
 	}
 }
 
@@ -399,7 +456,7 @@ void AAOSGameMode::IncrementPlayerCurrency()
 			AAOSPlayerState* PlayerState = Cast<AAOSPlayerState>(PlayerController->PlayerState);
 			if (PlayerState)
 			{
-				PlayerState->SetCurrency(PlayerState->GetCurrency() + IncrementAmount);
+				PlayerState->SetCurrency(PlayerState->GetCurrency() + IncrementCurrencyAmount);
 			}
 		}
 	}
@@ -412,7 +469,10 @@ void AAOSGameMode::ActivateCurrencyIncrement()
 
 void AAOSGameMode::ActivateSpawnMinion()
 {
-	GetWorldTimerManager().SetTimer(SpawnMinionTimerHandle, this, &AAOSGameMode::SpawnMinion, 30.f, true);
+	for (int32 i = 0; i < 3; i++)
+	{
+		SpawnMinion(EMinionType::Melee);
+	}
 }
 
 void AAOSGameMode::RequestRespawn(AAOSPlayerController* PlayerController)
@@ -555,4 +615,80 @@ void AAOSGameMode::BroadcastRemainingRespawnTime(int32 PlayerIndex, float Remain
 void AAOSGameMode::FindPlayerStart()
 {
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), PlayerStart);
+}
+
+
+void AAOSGameMode::OnCharacterDeath(AActor* InEliminator, TArray<ACharacterBase*> InNearbyPlayers, EObjectType InObjectType)
+{
+	ACharacterBase* Eliminator = Cast<ACharacterBase>(InEliminator);
+	if (!Eliminator)
+	{
+		return;
+	}
+
+	if (EnumHasAnyFlags(Eliminator->ObjectType, EObjectType::Player))
+	{
+		switch (InObjectType)
+		{
+		case EObjectType::Player:
+			
+			break;
+		case EObjectType::Minion:
+			break;
+		default:
+			break;
+		}
+	}
+	else
+	{
+		switch (InObjectType)
+		{
+		case EObjectType::Player:
+			break;
+		case EObjectType::Minion:
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+void AAOSGameMode::AddCurrencyToPlayer(ACharacterBase* Character, int32 Amount)
+{
+	if (::IsValid(Character) == false)
+	{
+		return;
+	}
+
+	UStatComponent* StatComopnent = Character->GetStatComponent();
+	if (!StatComopnent)
+	{
+		return;
+	}
+
+	AAOSPlayerState* PlayerState = Character->GetPlayerState<AAOSPlayerState>();
+	if (!PlayerState)
+	{
+		return;
+	}
+
+	int32 CurrentGold = PlayerState->GetCurrency();
+	PlayerState->SetCurrency(CurrentGold + Amount);
+}
+
+void AAOSGameMode::AddExpToPlayer(ACharacterBase* Character, int32 Amount)
+{
+	if (::IsValid(Character) == false)
+	{
+		return;
+	}
+
+	UStatComponent* StatComopnent = Character->GetStatComponent();
+	if (!StatComopnent)
+	{
+		return;
+	}
+
+	int32 CurrentExp = StatComopnent->GetCurrentEXP();
+	StatComopnent->SetCurrentEXP(CurrentExp + Amount);
 }

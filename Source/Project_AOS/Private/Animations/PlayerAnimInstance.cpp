@@ -5,6 +5,7 @@
 #include "Characters/AOSCharacterBase.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 UPlayerAnimInstance::UPlayerAnimInstance()
@@ -75,6 +76,18 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
             // 능력 상태 업데이트
             bIsAbilityRActive = EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Ability_R);
+
+            if (!OwnerCharacter->HasAuthority() && OwnerCharacter != UGameplayStatics::GetPlayerCharacter(this, 0))
+            {
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("bIsFalling: %s"), bIsFalling ? TEXT("true") : TEXT("false")), true, false, FLinearColor::Green, 2.0f, TEXT("1"));
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("GroundSpeed: %f"), GroundSpeed), true, false, FLinearColor::Green, 2.0f, TEXT("2"));
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("MoveInputWithMaxSpeed: %s"), *MoveInputWithMaxSpeed.ToString()), true, false, FLinearColor::Green, 2.0f, TEXT("3"));
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("MoveInput: %s"), *MoveInput.ToString()), true, false, FLinearColor::Green, 2.0f, TEXT("4"));
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("BaseAimRotation: %s"), *BaseAimRotation.ToString()), true, false, FLinearColor::Green, 2.0f, TEXT("5"));
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("SpeedAccelDotProduct: %f"), SpeedAccelDotProduct), true, false, FLinearColor::Green, 2.0f, TEXT("6"));
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("YawOffset: %f"), YawOffset), true, false, FLinearColor::Green, 2.0f, TEXT("7"));
+                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("bIsAbilityRActive: %s"), bIsAbilityRActive ? TEXT("true") : TEXT("false")), true, false, FLinearColor::Green, 2.0f, TEXT("8"));
+            }
         }
     }
 }
@@ -204,6 +217,56 @@ void UPlayerAnimInstance::PlayMontage(UAnimMontage* Montage, float PlayRate)
 	}
 }
 
+void UPlayerAnimInstance::AnimNotify_CheckHit_Q()
+{
+    if (::IsValid(OwnerCharacter) == false)
+    {
+        return;
+    }
+
+    OwnerCharacter->Ability_Q_CheckHit();
+}
+
+void UPlayerAnimInstance::AnimNotify_CheckHit_E()
+{
+    if (::IsValid(OwnerCharacter) == false)
+    {
+        return;
+    }
+
+    OwnerCharacter->Ability_E_CheckHit();
+}
+
+void UPlayerAnimInstance::AnimNotify_CheckHit_R()
+{
+    if (::IsValid(OwnerCharacter) == false)
+    {
+        return;
+    }
+
+    OwnerCharacter->Ability_R_CheckHit();
+}
+
+void UPlayerAnimInstance::AnimNotify_CheckHit_LMB()
+{
+    if (::IsValid(OwnerCharacter) == false)
+    {
+        return;
+    }
+
+    OwnerCharacter->Ability_LMB_CheckHit();
+}
+
+void UPlayerAnimInstance::AnimNotify_CheckHit_RMB()
+{
+    if (::IsValid(OwnerCharacter) == false)
+    {
+        return;
+    }
+
+    OwnerCharacter->Ability_RMB_CheckHit();
+}
+
 void UPlayerAnimInstance::AnimNotify_CanNextCombo()
 {
 	OnCheckComboAttackNotifyBegin.ExecuteIfBound();
@@ -211,7 +274,7 @@ void UPlayerAnimInstance::AnimNotify_CanNextCombo()
 
 void UPlayerAnimInstance::AnimNotify_CanNextAction()
 {
-	OnEnableSwithActionNotifyBegin.ExecuteIfBound();
+	OnEnableSwitchActionNotifyBegin.ExecuteIfBound();
 }
 
 void UPlayerAnimInstance::AnimNotify_CanMove()
@@ -222,16 +285,6 @@ void UPlayerAnimInstance::AnimNotify_CanMove()
 void UPlayerAnimInstance::AnimNotify_WeakAttackEnd()
 {
 	OnStopBasicAttackNotifyBegin.ExecuteIfBound();
-}
-
-void UPlayerAnimInstance::AnimNotify_DashEnded()
-{
-	OnAuroraDashEnded.ExecuteIfBound();
-}
-
-void UPlayerAnimInstance::AnimNotify_SpawnParticle()
-{
-	OnSpawnParticleNotifyBegin.ExecuteIfBound();
 }
 
 void UPlayerAnimInstance::EnableTurnLeft()

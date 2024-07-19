@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Structs/EnumClassification.h"
-#include "Structs/StructItemAbility.h"
+#include "Structs/ItemAbilityData.h"
 #include "Item.generated.h"
 
 class AAOSCharacterBase;

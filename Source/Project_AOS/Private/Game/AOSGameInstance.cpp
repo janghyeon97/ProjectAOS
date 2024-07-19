@@ -11,6 +11,9 @@ UAOSGameInstance::UAOSGameInstance()
 	static ConstructorHelpers::FObjectFinder<UDataTable> MINION_DATATABLE(TEXT("/Game/ProjectAOS/DataTables/Minions/DT_MinionDataTable.DT_MinionDataTable"));
 	if (MINION_DATATABLE.Succeeded()) MinionDataTable = MINION_DATATABLE.Object;
 
+	static ConstructorHelpers::FObjectFinder<UDataTable> GAME_DATATABLE(TEXT("/Game/ProjectAOS/DataTables/Minions/DT_GameDataTable.DT_GameDataTable"));
+	if (GAME_DATATABLE.Succeeded()) GameDataTable = GAME_DATATABLE.Object;
+
 	NumberOfPlayer = -1;
 }
 
@@ -116,19 +119,19 @@ FAbility* UAOSGameInstance::GetCharacterAbilityStruct(uint32 ChampionIndex, EAbi
 	switch (AbilityID)
 	{
 	case EAbilityID::Ability_Q:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_Q.AbilityInfomation.MaxLevel;
+		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_Q.AbilityInformation.MaxLevel;
 		break;
 	case EAbilityID::Ability_E:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_E.AbilityInfomation.MaxLevel;
+		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_E.AbilityInformation.MaxLevel;
 		break;
 	case EAbilityID::Ability_R:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_R.AbilityInfomation.MaxLevel;
+		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_R.AbilityInformation.MaxLevel;
 		break;
 	case EAbilityID::Ability_LMB:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_LMB.AbilityInfomation.MaxLevel;
+		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_LMB.AbilityInformation.MaxLevel;
 		break;
 	case EAbilityID::Ability_RMB:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_RMB.AbilityInfomation.MaxLevel;
+		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_RMB.AbilityInformation.MaxLevel;
 		break;
 	}
 
@@ -155,7 +158,7 @@ FAbility* UAOSGameInstance::GetCharacterAbilityStruct(uint32 ChampionIndex, EAbi
 	return nullptr;
 }
 
-FAbilityStat* UAOSGameInstance::GetCharacterAbilityStat(uint32 ChampionIndex, EAbilityID AbilityID, uint32 InLevel, uint8 InstanceIndex)
+FAbilityStatTable* UAOSGameInstance::GetCharacterAbilityStat(uint32 ChampionIndex, EAbilityID AbilityID, uint32 InLevel, uint8 InstanceIndex)
 {
 	FAbility* DataTable = GetCharacterAbilityStruct(ChampionIndex, AbilityID, InLevel);
 	if (!DataTable)
@@ -163,8 +166,8 @@ FAbilityStat* UAOSGameInstance::GetCharacterAbilityStat(uint32 ChampionIndex, EA
 		return nullptr;
 	}
 
-	uint8 InstanceLevel = FMath::Clamp<uint8>(InstanceIndex, 1, DataTable->AbilityInfomation.MaxInstances);
-	return &DataTable->AbilityStatInfomation[InstanceLevel - 1];
+	uint8 InstanceLevel = FMath::Clamp<uint8>(InstanceIndex, 1, DataTable->AbilityInformation.MaxInstances);
+	return &DataTable->AbilityStatInformation[InstanceLevel - 1];
 }
 
 const UDataTable* UAOSGameInstance::GetCharacterSkinDataTable()
@@ -240,4 +243,9 @@ FStatTableRow* UAOSGameInstance::GetMinionStat(EMinionType MinionType)
 	}
 
 	return FoundRow;
+}
+
+const UDataTable* UAOSGameInstance::GetGameDataTable()
+{
+	return GameDataTable;
 }

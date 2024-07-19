@@ -20,6 +20,7 @@
 #include "Props/SplineActor.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
+#include "Props/FreezeSegment.h"
 
 
 AAuroraCharacter::AAuroraCharacter()
@@ -49,13 +50,13 @@ AAuroraCharacter::AAuroraCharacter()
 	Ability_LMB_CurrentComboCount = 0;
 	Ability_LMB_MaxComboCount = 4;
 
-	Ability_RMB_LastInterp = 0;
 	Ability_RMB_QuadraticScale = 3.f;
 	Ability_RMB_JumpScale = 60.f;
 
 	SplinePointIndex = 0;
 
 	bIsTumbling = false;
+	bIsDashing = false;
 
 	SelectedCharacterIndex = 1;
 
@@ -144,11 +145,21 @@ void AAuroraCharacter::Tick(float DeltaSeconds)
 		HandleTumbling(DeltaSeconds);
 	}
 
+	// 서버 권한이 있고, 캐릭터가 대쉬 중일 때의 처리
+	if (HasAuthority() && bIsDashing)
+	{
+		HandleDashing(DeltaSeconds);
+	}
+
 	// 클라이언트에서 부드러운 이동 처리를 위한 처리
 	if (!HasAuthority() && bSmoothMovement)
 	{
 		SmoothMovement(DeltaSeconds);
 	}
+
+	FVector DebugLoation = GetActorLocation() - FVector(0, 0, 95.f);
+	FVector DebugForwardVector = GetActorForwardVector();
+	DrawDebugDirectionalArrow(GetWorld(), DebugLoation, DebugLoation + DebugForwardVector * 200, 5, FColor::Red, false, -1.0f, 0, 1);
 }
 
 void AAuroraCharacter::BeginPlay()
@@ -159,12 +170,15 @@ void AAuroraCharacter::BeginPlay()
 	{
 		AnimInstance->OnMontageEnded.AddDynamic(this, &AAuroraCharacter::MontageEnded);
 		AnimInstance->OnStopBasicAttackNotifyBegin.BindUObject(this, &AAuroraCharacter::Ability_LMB_AttackEnded);
-		AnimInstance->OnAuroraDashEnded.BindUObject(this, &AAuroraCharacter::Ability_E_Ended);
+		//AnimInstance->OnAuroraDashEnded.BindUObject(this, &AAuroraCharacter::Ability_E_Ended);
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::BeginPlay] AnimInstance is no vaild."));
 	}
+
+	//RegisterAbilityStage(EAbilityID::Ability_Q, 1, FAbilityStageFunction::CreateLambda([this]() { PlayeAbilityMontage(Ability_Q_Montage, 1.0); }));
+	//RegisterAbilityStage(EAbilityID::Ability_Q, 2, FAbilityStageFunction::CreateLambda([this]() { Ability_Q_CalculateAndRequestParticleSpawn(); }));
 }
 
 void AAuroraCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -203,7 +217,7 @@ void AAuroraCharacter::Move(const FInputActionValue& InValue)
 	{
 		if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::AbilityUsed))
 		{
-			EnumRemoveFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+			//EnumRemoveFlags(CharacterState, EBaseCharacterState::AbilityUsed);
 			AnimInstance->StopAllMontages(0.25f);
 			StopAllMontages_Server(0.25f);
 		}
@@ -242,272 +256,216 @@ void AAuroraCharacter::Look(const FInputActionValue& InValue)
 /*
 	1. UniqueValue[0]: RootDuration			중앙 파티클 지속시간
 	2. UniqueValue[1]: RingDuration			링 파티클 지속시간
-	3. UniqueValue[2]: Radius				링 반경
+	3. UniqueValue[2]: ParticleScale		링 파티클 크기
+	4. UniqueValue[3]: NumParticles			링 파티클 개수
+	5. UniqueValue[4]: FirstDelay			링 파티클 초기 지연시간
+	6. UniqueValue[5]: Rate					링 파티클 생성 속도
 */
 void AAuroraCharacter::Ability_Q()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
-		return;
-	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_Q] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (::IsValid(StatComponent) == false || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_Q] StatComponent, AbilityStatComponent, or AnimInstance is null."));
 		return;
 	}
 
 	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_Q);
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bAbilityReady)
-	{
-		//AbilityStatComponent->UseAbility(EAbilityID::Ability_Q, GetWorld()->GetTimeSeconds());
-		//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_Q);
-
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
-
-		// 현재 캐릭터의 위치, 회전, 방향 벡터를 저장
-		LastCharacterLocation = GetActorLocation();
-		LastCharacterRotation = GetActorRotation();
-		LastForwardVector = GetActorForwardVector();
-		LastRightVector = GetActorRightVector();
-		LastUpVector = GetActorUpVector();
-
-		// 능력 통계 값을 가져와서 고유 값을 확인
-		TArray<float> UniqueValues = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_Q, 0).UniqueValue;;
-		FTransform Transform(FRotator(0), LastCharacterLocation + FVector(0, 0, -95.f), FVector(1));
-		FCircularParticleInfomation CircularParticleInfomation;
-
-		Ability_Q_RingDuration = 1.f;
-		Ability_Q_Radius = 10.f;
-
-		// 고유 값이 유효한 경우 능력 값을 업데이트
-		if (UniqueValues.IsValidIndex(1) && UniqueValues.IsValidIndex(2))
-		{
-			Ability_Q_RingDuration = UniqueValues[1];
-			Ability_Q_Radius = UniqueValues[2];
-		}
-
-		Ability_Q_Rate = 0.01f;
-		Ability_Q_FirstDelay = 0.35f;
-		Ability_Q_NumParicles = 28;
-		Ability_Q_ParticleScale = 1;
-
-		// 변환 설정 업데이트
-		Transform.SetRotation(LastCharacterRotation.Quaternion());
-		Transform.SetScale3D(FVector(Ability_Q_ParticleScale));
-
-		CircularParticleInfomation.ForwardVector = LastForwardVector;
-		CircularParticleInfomation.RightVector = LastRightVector;
-		CircularParticleInfomation.UpVector = LastUpVector;
-		CircularParticleInfomation.NumOfParicles = Ability_Q_NumParicles;
-		CircularParticleInfomation.Angle = 360.f / Ability_Q_NumParicles;
-		CircularParticleInfomation.Radius = Ability_Q_Radius;
-		CircularParticleInfomation.Lifetime = Ability_Q_RingDuration;
-		CircularParticleInfomation.Transform = Transform;
-		CircularParticleInfomation.Rate = Ability_Q_Rate;
-		CircularParticleInfomation.Delay = Ability_Q_FirstDelay;
-
-		AnimInstance->PlayMontage(Ability_Q_Montage, 1.0f);
-		PlayMontage_Server(Ability_Q_Montage, 1.0f);
-
-		if (::IsValid(FreezeRooted) && ::IsValid(FreezeWhrilwind) && ::IsValid(FreezeSegment))
-		{
-			SpawnRootedParicleAtLocation_Server(FreezeRooted, Transform);
-			SpawnRootedParicleAtLocation_Server(FreezeWhrilwind, Transform);
-			SpawnCircularParicleAtLocation_Server(FreezeSegment, CircularParticleInfomation, Transform);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_Q] FreezeRooted, FreezeWhrilwind, or FreezeSegment particles are not valid."));
-			return;
-		}
-
-		Ability_Q_CheckHit();
-
-	}
-	else
+	if (!bAbilityReady)
 	{
 		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
+		return;
 	}
+
+	// 능력 쿨타임 설정
+	//AbilityStatComponent->UseAbility(EAbilityID::Ability_Q, GetWorld()->GetTimeSeconds());
+	//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_Q);
+
+	ServerNotifyAbilityUse(EAbilityID::Ability_Q, ETriggerEvent::None);
+	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::Ability_Q"));
+	SaveCharacterTransform();
+
+	// 능력 통계 값을 가져와서 고유 값을 확인
+	const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_Q);;
+	TMap<FString, float> UniqueAttributes = AbilityStatTable.GetUniqueAttributesMap();
+
+	Ability_Q_Radius = AbilityStatTable.Radius != 0 ? AbilityStatTable.Radius : 440.f;
+	Ability_Q_RingDuration = UniqueAttributes.Contains("RingDuration") ? UniqueAttributes["RingDuration"] : 2.f;
+	Ability_Q_ParticleScale = UniqueAttributes.Contains("ParticleScale") ? UniqueAttributes["ParticleScale"] : 1.f;
+	Ability_Q_NumParicles = UniqueAttributes.Contains("NumParticles") ? UniqueAttributes["NumParticles"] : 28;
+	Ability_Q_FirstDelay = UniqueAttributes.Contains("FirstDelay") ? UniqueAttributes["FirstDelay"] : 0.35f;
+	Ability_Q_Rate = UniqueAttributes.Contains("Rate") ? UniqueAttributes["Rate"] : 0.01f;
+
+	FCachedParticleInfo ParticleInfomation;
+	ParticleInfomation.Lifetime = Ability_Q_RingDuration;
+	ParticleInfomation.NumParicles = Ability_Q_NumParicles;
+	ParticleInfomation.Scale = Ability_Q_ParticleScale;
+	ParticleInfomation.Rate = Ability_Q_Rate;
+	ParticleInfomation.Radius = Ability_Q_Radius;
+
+	// 데미지 계산
+	const float Character_AttackDamage = StatComponent->GetAttackDamage();
+	const float Character_AbilityPower = StatComponent->GetAbilityPower();
+
+	const float BaseAttackDamage = AbilityStatTable.AttackDamage ? AbilityStatTable.AttackDamage : 0;
+	const float BaseAbilityPower = AbilityStatTable.AbilityDamage ? AbilityStatTable.AbilityDamage : 0;
+	const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling ? AbilityStatTable.AD_PowerScaling : 0;
+	const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling ? AbilityStatTable.AP_PowerScaling : 0;
+
+	const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
+
+	FDamageInfomation DamageInfomation;
+	DamageInfomation.AbilityID = EAbilityID::Ability_Q;
+	DamageInfomation.AttackEffect = EAttackEffect::AbilityEffects;
+	DamageInfomation.CrowdControls.Add(FCrowdControlInformation(EBaseCrowdControl::Snare, 1.0));
+	DamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
+
+	FTransform Transform(UKismetMathLibrary::MakeRotFromX(LastForwardVector), LastCharacterLocation, FVector(1));
+
+	PlayeAbilityMontage(Ability_Q_Montage, 1.0);
+	SpawnFreezeSegments_Server(Transform, ParticleInfomation, DamageInfomation);
 }
 
+
+/*
+ *	Ability_E 함수는 E 능력을 활성화합니다.
+ *	능력 사용 가능 여부와 준비 상태를 확인한 후, 캐릭터를 목표 위치로 대쉬하고 보호막 메쉬를 생성합니다.
+ *	고유 속성 값을 가져와서 능력의 범위와 지속 시간을 설정합니다.
+ *	생성된 목표 위치는 서버로 전달되어 서버에서 이동이 처리됩니다.
+ *
+ *	1. UniqueValue[0]: Duration			얼음길 지속시간
+ */
 void AAuroraCharacter::Ability_E()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
 		return;
 	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_E] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (::IsValid(StatComponent) == false || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_E] StatComponent, AbilityStatComponent, or AnimInstance is null."));
-		return;
-	}
-
 
 	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_E);
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bAbilityReady)
+	if (!bAbilityReady)
 	{
-		AbilityStatComponent->UseAbility(EAbilityID::Ability_E, GetWorld()->GetTimeSeconds());
+		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
+		return;
+	}
 
-		uint8 InstanceIndex = AbilityStatComponent->GetAbilityInfomation(EAbilityID::Ability_E).InstanceIndex;
-		if (InstanceIndex == 1)
-		{
-			EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
-			EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
-			EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+	//AbilityStatComponent->UseAbility(EAbilityID::Ability_E, GetWorld()->GetTimeSeconds());
+	//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_E);
 
-			bUseControllerRotationYaw = false;
+	ServerNotifyAbilityUse(EAbilityID::Ability_E, ETriggerEvent::None);
+	SaveCharacterTransform();
 
-			LastCharacterLocation = GetActorLocation() + FVector(0, 0, -95.f);
-			LastCharacterRotation = GetActorRotation();
-			LastForwardVector = GetActorForwardVector();
+	bUseControllerRotationYaw = false;
 
-			UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
-			if (MovementComponent)
-			{
-				MovementComponent->MaxWalkSpeed = 2000.f;
-				MovementComponent->MinAnalogWalkSpeed = 1000.f;
-				MovementComponent->MaxAcceleration = 100000.f;
-			}
+	float Range = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_E).Range;
+	FVector TargetLocation = LastCharacterLocation + LastForwardVector * (Range > 0 ? Range : 900.f);
 
-			Ability_E_Started_Server();
+	if (::IsValid(ShieldTop) && ::IsValid(ShieldMiddle) && ::IsValid(ShieldBottom))
+	{
+		SpawnAttachedMeshAtLocation_Server(ShieldBottom, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, -50.0f), Ability_E_ShieldDuration);
+		SpawnAttachedMeshAtLocation_Server(ShieldMiddle, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 0.0f), Ability_E_ShieldDuration);
+		SpawnAttachedMeshAtLocation_Server(ShieldTop, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 50.0f), Ability_E_ShieldDuration);
+	}
 
-			if (::IsValid(Ability_E_Montage))
-			{
-				AnimInstance->PlayMontage(Ability_E_Montage, 1.0f);
-				PlayMontage_Server(Ability_E_Montage, 1.0f);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_E] Ability_E_Montage is null."));
-				return;
-			}
+	Ability_E_Server(TargetLocation);
+	PlayeAbilityMontage(Ability_E_Montage, 1.0);
+}
 
-			GetWorldTimerManager().SetTimer(
-				Ability_E_Timer,
-				FTimerDelegate::CreateLambda([this]()
-					{
-						AddMovementInput(LastForwardVector, Ability_E_BoostStrength);
-					}),
-				0.01f,
-				true,
-				Ability_E_FirstDelay
-			);
+void AAuroraCharacter::Ability_E_Server_Implementation(FVector TargetLocation)
+{
+	SaveCharacterTransform();
 
-			if (::IsValid(ShieldTop) && ::IsValid(ShieldMiddle) && ::IsValid(ShieldBottom))
-			{
-				SpawnAttachedMeshAtLocation_Server(ShieldBottom, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, -50.0f), Ability_E_ShieldDuration);
-				SpawnAttachedMeshAtLocation_Server(ShieldMiddle, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 0.0f), Ability_E_ShieldDuration);
-				SpawnAttachedMeshAtLocation_Server(ShieldTop, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 50.0f), Ability_E_ShieldDuration);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_E] ShieldTop, ShieldMiddle or ShieldBottom is null."));
-			}
+	Ability_E_TargetLocation = TargetLocation;
 
-			Ability_E_CheckHit();
-		}
-		else
-		{
-			AbilityStatComponent->UseAbility(EAbilityID::Ability_E, GetWorld()->GetTimeSeconds());
-		}
+	DrawDebugSphere(GetWorld(), TargetLocation, 10.f, 32, FColor::Red, false, 5.0f, 0, 2.0f);
+
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
+	Ability_ElapsedTime = 0.f;
+	bIsDashing = true;
+	bSmoothMovement = true;
+}
+
+void AAuroraCharacter::HandleDashing(float DeltaSeconds)
+{
+	Ability_ElapsedTime += DeltaSeconds;
+
+	float InterpolationAlpha = FMath::Clamp(Ability_ElapsedTime / 0.5f, 0.0f, 1.0f);
+	if (InterpolationAlpha >= 1.0f)
+	{
+		bIsDashing = false;
+		bSmoothMovement = false;
 	}
 	else
 	{
-		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
+		FVector NewLocation = FMath::Lerp(LastCharacterLocation, Ability_E_TargetLocation, InterpolationAlpha) + FVector(0, 0, 60.f);
+
+		bool bLocationSet = SetActorLocation(NewLocation, true, nullptr, ETeleportType::None);
+		if (!bLocationSet)
+		{
+			bSmoothMovement = false;
+		}
+
+		DrawDebugSphere(GetWorld(), NewLocation, 5.f, 32, FColor::Emerald, false, 5.0f, 0, 2.0f);
+
+		ReplicatedTargetLocation = NewLocation;
 	}
 }
 
+
+/*
+	1. UniqueValue[0]: HeroShatterAbilityDamage			챔피언 대상 추가 데미지
+	2. UniqueValue[1]: NonHeroShatterAbilityDamage		비 챔피언 대상 추가 데미지
+	3. UniqueValue[2]: InitialPowerScaling				초기 AbilityPower 계수
+	4. UniqueValue[3]: PowerScalingOnHero				챔피언 대상 AbilityPower 계수
+	5. UniqueValue[4]: PowerScalingOnNonHero			비 챔피언 대상 AbilityPower 계수
+	6. UniqueValue[5]: ChainRadius						연쇄 폭발 사거리
+	7. UniqueValue[6]: SlowDuration						이동속도 감소 지속시간
+	8. UniqueValue[7]: MovementSpeedSlow				이동속도 감소율
+	9. UniqueValue[8]: StunDuration						기절 지속시간
+	10. UniqueValue[9]: ExplodeTime						연쇄 폭팔 시간
+*/
 void AAuroraCharacter::Ability_R()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
 		return;
 	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_R] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (::IsValid(StatComponent) == false || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_R] StatComponent, AbilityStatComponent, or AnimInstance is null."));
-		return;
-	}
-
 
 	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_R);
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bAbilityReady)
+	if (!bAbilityReady)
 	{
-		AbilityStatComponent->UseAbility(EAbilityID::Ability_R, GetWorld()->GetTimeSeconds());
-		AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_R);
+		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
+		return;
+	}
 
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
 
-		LastCharacterLocation = GetActorLocation();
+	//AbilityStatComponent->UseAbility(EAbilityID::Ability_R, GetWorld()->GetTimeSeconds());
+	//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_R);
 
-		if (::IsValid(Ability_R_Montage))
-		{
-			AnimInstance->PlayMontage(Ability_R_Montage, 1.0f);
-			PlayMontage_Server(Ability_R_Montage, 1.0f);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[ASparrowCharacter::Ability_R] Ability_R_Montage is null."));
-			return;
-		}
+	ServerNotifyAbilityUse(EAbilityID::Ability_R, ETriggerEvent::None);
+	SaveCharacterTransform();
 
-		Ability_R_Started_Server();
+	PlayeAbilityMontage(Ability_R_Montage, 1.0);
 
-		if (::IsValid(UltimateWarmUp))
-		{
-			SpawnAttachedParicleAtLocation_Server(UltimateWarmUp, FTransform(FRotator(0), LastCharacterLocation, FVector(1)));
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[ASparrowCharacter::Ability_R] UltimateWarmUp particle is not valid, unable to spawn particle."));
-		}
+	Ability_R_Started_Server();
 
-		GetWorldTimerManager().SetTimer(
-			Ability_R_Timer,
-			FTimerDelegate::CreateLambda([this]()
-				{
-					if (UltimateExplode)
-					{
-						SpawnRootedParicleAtLocation_Server(UltimateExplode, FTransform(FRotator(0), GetActorLocation(), FVector(1)));
-					}
-					else
-					{
-						UE_LOG(LogTemp, Error, TEXT("[ASparrowCharacter::Ability_R] UltimateExplode particle is not valid, unable to spawn particle."));
-					}
-					Ability_R_CheckHit();
-				}),
-			Ability_R_ExplodeDelay,
-			false
-		);
+	if (::IsValid(UltimateWarmUp))
+	{
+		FTransform ParticleTransform(FRotator::ZeroRotator, LastCharacterLocation, FVector(1.0f));
+		SpawnAttachedParticleAtLocation_Server(UltimateWarmUp, ParticleTransform);
+	}
+}
+
+void AAuroraCharacter::Ability_R_Started_Server_Implementation()
+{
+	if (!GetCharacterMovement()->IsFalling())
+	{
+		LaunchCharacter(FVector(0, 0, Ability_R_BoostStrength), false, true);
 	}
 	else
 	{
-		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
+		LaunchCharacter(FVector(0, 0, Ability_R_BoostStrength / 3), false, true);
 	}
 }
 
@@ -517,30 +475,19 @@ void AAuroraCharacter::Ability_R()
  */
 void AAuroraCharacter::Ability_LMB()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
 		return;
 	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_LMB] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (::IsValid(StatComponent) == false || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_LMB] StatComponent, AbilityStatComponent, or AnimInstance is null."));
-		return;
-	}
-
 
 	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_LMB);
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bAbilityReady)
+	if (bAbilityReady)
 	{
 		AbilityStatComponent->UseAbility(EAbilityID::Ability_LMB, GetWorld()->GetTimeSeconds());
 		AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_LMB);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+
+		ServerNotifyAbilityUse(EAbilityID::Ability_LMB, ETriggerEvent::None);
 
 		if (::IsValid(Ability_LMB_Montage) == false)
 		{
@@ -614,27 +561,18 @@ void AAuroraCharacter::ContinueComboAttack()
  * RMB 능력을 활성화합니다. Ctrl 키가 눌렸는지 여부를 확인하고, 능력이 준비되었는지 확인합니다.
  * 능력이 준비되었으면 이동 및 행동 상태를 업데이트하고, 해당 섹션의 애니메이션을 재생한 후 서버에서 능력을 실행합니다.
  *
-	- UniqueValue[0]: Range			사거리
+ * 캐릭터의 현재 위치와 이동 방향을 기반으로 목표 위치를 설정합니다.
+ * 목표 위치로의 이동 중 장애물 충돌 여부를 확인하고, 충돌한 경우 적절히 처리합니다.
+ *
+ *	- UniqueValue[0]: Range			사거리
  */
 void AAuroraCharacter::Ability_RMB()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
 		return;
 	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_RMB] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (::IsValid(StatComponent) == false || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_RMB] StatComponent, AbilityStatComponent, or AnimInstance is null."));
-		return;
-	}
-
 
 	bool bIsAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_RMB);
 
@@ -642,11 +580,10 @@ void AAuroraCharacter::Ability_RMB()
 	{
 		// 능력을 사용하고 쿨다운 시작
 		//AbilityStatComponent->UseAbility(EAbilityID::Ability_RMB, GetWorld()->GetTimeSeconds());
-		//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_RMB);
+		//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_RMB);		
 
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+		ServerNotifyAbilityUse(EAbilityID::Ability_RMB, ETriggerEvent::None);
+		SaveCharacterTransform();
 
 		const FRotator CurrentControlRotation = GetController()->GetControlRotation();
 		const FRotator ControlRotationYaw(0.f, CurrentControlRotation.Yaw, 0.f);
@@ -655,11 +592,11 @@ void AAuroraCharacter::Ability_RMB()
 		const FVector RightDirection = FRotationMatrix(ControlRotationYaw).GetUnitAxis(EAxis::Y);
 		const FVector MoveDirection = (ForwardDirection * ForwardInputValue) + (RightDirection * RightInputValue);
 
-		int32 DirectionIndex = CalculateDirectionIndex();
-		FName MontageSectionName = FName(*FString::Printf(TEXT("RMB%d"), DirectionIndex));
-
 		if (::IsValid(Ability_RMB_Montage))
 		{
+			int32 DirectionIndex = CalculateDirectionIndex();
+			FName MontageSectionName = FName(*FString::Printf(TEXT("RMB%d"), DirectionIndex));
+
 			AnimInstance->PlayMontage(Ability_RMB_Montage, 1.0f);
 			AnimInstance->Montage_JumpToSection(MontageSectionName, Ability_RMB_Montage);
 			PlayMontage_Server(Ability_RMB_Montage, 1.0f);
@@ -678,48 +615,10 @@ void AAuroraCharacter::Ability_RMB()
 	}
 }
 
-/**
- * 서버에서 RMB 능력을 실행합니다. 캐릭터의 현재 위치와 이동 방향을 기반으로 목표 위치를 설정합니다.
- * 목표 위치로의 이동 중 장애물 충돌 여부를 확인하고, 충돌한 경우 적절히 처리합니다.
- */
-void AAuroraCharacter::Ability_RMB_Server_Implementation(FVector MoveDirection)
+FVector AAuroraCharacter::CalculateTargetLocation(const FVector& MoveDirection, const float Range)
 {
-	if (::IsValid(AbilityStatComponent) == false)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_RMB_Server] AbilityStatComponent is not valid."));
-		return;
-	}
-
-	TArray<FAbilityStatTable> AbilityStats = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_RMB);
-
-	if (AbilityStats.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_RMB_Server] AbilityStats array is empty."));
-		return;
-	}
-
-	TArray<float> UniqueValues = AbilityStats[0].UniqueValue;
-	if (UniqueValues.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_RMB_Server] UniqueValue array is empty."));
-		return;
-	}
-
-	// UniqueValue 배열의 요소가 유효한지 검사
-	for (int32 i = 0; i < UniqueValues.Num(); i++)
-	{
-		if (UniqueValues.IsValidIndex(i) == false)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_RMB_Server] There is an invalid value in the UniqueValues array at index: %d"), i);
-			return;
-		}
-	}
-
-	LastCharacterLocation = GetActorLocation() - FVector(0, 0, 45.f);
-	LastForwardVector = GetActorForwardVector();
-
 	FVector CurrentLocation = GetActorLocation() - FVector(0, 0, 45.f);
-	FVector TargetLocation = CurrentLocation + (MoveDirection * UniqueValues[0]);
+	FVector TargetLocation = CurrentLocation + (MoveDirection * Range);
 
 	FCollisionQueryParams CollisionParams(NAME_None, false, this);
 	FHitResult FirstHitResult;
@@ -773,12 +672,57 @@ void AAuroraCharacter::Ability_RMB_Server_Implementation(FVector MoveDirection)
 		TargetLocation = FirstHitResult.Location;
 	}
 
-	Ability_RMB_TargetLocation = TargetLocation;
+	return TargetLocation;
+}
 
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
-	Ability_RMB_ElapsedTime = 0.f;
-	bIsTumbling = true;
-	bSmoothMovement = true;
+bool AAuroraCharacter::Ability_RMB_Server_Validate(FVector MoveDirection)
+{
+	// 서버에서 검증 로직 추가
+	// TargetLocation이 합리적인 범위 내에 있는지 확인합니다.
+
+	return true;
+}
+
+void AAuroraCharacter::Ability_RMB_Server_Implementation(FVector MoveDirection)
+{
+	if (!IsValid(AbilityStatComponent))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_RMB_Server] AbilityStatComponent is not valid."));
+		return;
+	}
+
+	FAbilityStatTable AbilityStats = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_RMB);
+
+	if (AbilityStats.Range <= 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_RMB_Server] Invalid ability range: %f"), AbilityStats.Range);
+		return;
+	}
+
+	if (MoveDirection.IsNearlyZero())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_RMB_Server] MoveDirection is nearly zero."));
+		return;
+	}
+
+	float Range = AbilityStats.Range;
+
+	SaveCharacterTransform();
+
+	Ability_RMB_TargetLocation = CalculateTargetLocation(MoveDirection, Range);
+
+	// Check if the calculated target location is valid
+	if (!Ability_RMB_TargetLocation.ContainsNaN() && Ability_RMB_TargetLocation != FVector::ZeroVector)
+	{
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
+		Ability_ElapsedTime = 0.f;
+		bIsTumbling = true;
+		bSmoothMovement = true;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_RMB_Server] Calculated target location is invalid: %s"), *Ability_RMB_TargetLocation.ToString());
+	}
 }
 
 /**
@@ -787,9 +731,9 @@ void AAuroraCharacter::Ability_RMB_Server_Implementation(FVector MoveDirection)
  */
 void AAuroraCharacter::HandleTumbling(float DeltaSeconds)
 {
-	Ability_RMB_ElapsedTime += DeltaSeconds;
+	Ability_ElapsedTime += DeltaSeconds;
 
-	float InterpolationAlpha = FMath::Clamp(Ability_RMB_ElapsedTime / 0.35f, 0.0f, 1.0f);
+	float InterpolationAlpha = FMath::Clamp(Ability_ElapsedTime / 0.35f, 0.0f, 1.0f);
 	if (InterpolationAlpha >= 1.0f)
 	{
 		bIsTumbling = false;
@@ -815,6 +759,7 @@ void AAuroraCharacter::HandleTumbling(float DeltaSeconds)
 	}
 }
 
+
 /**
  * 캐릭터를 목표 위치로 부드럽게 이동시킵니다.
  * 현재 위치와 목표 위치 사이를 보간하여 캐릭터를 이동시킵니다.
@@ -825,6 +770,7 @@ void AAuroraCharacter::SmoothMovement(float DeltaSeconds)
 	FVector NewLocation = FMath::VInterpTo(CurrentLocation, ReplicatedTargetLocation, DeltaSeconds, 20.f);
 	SetActorLocation(NewLocation);
 }
+
 
 /**
  * 이동 방향을 기반으로 방향 인덱스를 계산합니다.
@@ -847,57 +793,7 @@ int32 AAuroraCharacter::CalculateDirectionIndex()
 
 void AAuroraCharacter::Ability_Q_CheckHit()
 {
-	float CollisionSphereSize = Ability_Q_Radius; // y x z
-	FCollisionQueryParams params(NAME_None, false, this);
 
-	OutHits.Empty();
-
-	bool bResult = GetWorld()->OverlapMultiByChannel(
-		OutHits,
-		GetActorLocation() + FVector(0, 0, -45.f),
-		FQuat::Identity,
-		ECC_GameTraceChannel3,
-		FCollisionShape::MakeSphere(CollisionSphereSize),
-		params
-	);
-
-	if (bResult)
-	{
-		for (const auto& OutHit : OutHits)
-		{
-			if (::IsValid(OutHit.GetActor()))
-			{
-				ACharacterBase* Character = Cast<ACharacterBase>(OutHit.GetActor());
-				if (::IsValid(Character))
-				{
-					// 적팀일 경우에만 데미지 적용.
-					if (Character->TeamSide != this->TeamSide)
-					{
-						const FAbilityStatTable AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_Q, 0);
-
-						const float Character_AttackDamage = StatComponent->GetAttackDamage();
-						const float Character_AbilityPower = StatComponent->GetAbilityPower();
-
-						const float BaseAttackDamage = AbilityStatTable.Ability_AttackDamage;
-						const float BaseAbilityPower = AbilityStatTable.Ability_AbilityPower;
-						const float Ability_AD_Ratio = AbilityStatTable.Ability_AD_Ratio;
-						const float Ability_AP_Ratio = AbilityStatTable.Ability_AP_Ratio;
-
-						const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * Ability_AD_Ratio) + (BaseAbilityPower + Character_AbilityPower * Ability_AP_Ratio);
-
-						FDamageInfomation DamageInfomation;
-						DamageInfomation.AbilityID = EAbilityID::Ability_Q;
-						DamageInfomation.AttackEffect = EAttackEffect::AbilityEffects;
-						DamageInfomation.AbilityEffects.Add(ECrowdControlBase::Slow);
-						DamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
-
-						ApplyDamage_Server(Character, DamageInfomation, GetController(), this);
-					}
-				}
-			}
-		}
-
-	}
 }
 
 void AAuroraCharacter::Ability_E_CheckHit()
@@ -905,9 +801,34 @@ void AAuroraCharacter::Ability_E_CheckHit()
 
 }
 
+
+/*
+ *  
+ * 
+ *	1. UniqueValue[0]: HeroShatterAbilityDamage			챔피언 대상 추가 데미지
+ *	2. UniqueValue[1]: NonHeroShatterAbilityDamage		비 챔피언 대상 추가 데미지
+ *	3. UniqueValue[2]: InitialPowerScaling				초기 AbilityPower 계수
+ *	4. UniqueValue[3]: PowerScalingOnHero				챔피언 대상 AbilityPower 계수
+ *	5. UniqueValue[4]: PowerScalingOnNonHero			비 챔피언 대상 AbilityPower 계수
+ *	6. UniqueValue[5]: ChainRadius						연쇄 폭발 사거리
+ *	7. UniqueValue[6]: SlowDuration						이동속도 감소 지속시간
+ *	8. UniqueValue[7]: MovementSpeedSlow				이동속도 감소율
+ *	9. UniqueValue[8]: StunDuration						기절 지속시간
+ *	10. UniqueValue[9]: ExplodeTime						연쇄 폭팔 시간
+ */
 void AAuroraCharacter::Ability_R_CheckHit()
 {
-	float CollisionSphereSize = Ability_R_Range; // y x z
+	// 폭발 파티클 생성
+	if (UltimateExplode)
+	{
+		SpawnRootedParticleAtLocation_Server(UltimateExplode, FTransform(FRotator(0), GetActorLocation(), FVector(1)));
+	}
+
+	// 능력 스탯 테이블 및 고유 속성 가져오기
+	const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R);
+	TMap<FString, float> UniqueAttributes = AbilityStatTable.GetUniqueAttributesMap();
+
+	float CollisionSphereSize = AbilityStatTable.Radius > 0 ? AbilityStatTable.Radius : 850.f;
 	FCollisionQueryParams params(NAME_None, false, this);
 
 	OutHits.Empty();
@@ -921,45 +842,121 @@ void AAuroraCharacter::Ability_R_CheckHit()
 		params
 	);
 
-	if (bResult)
+	if (!bResult)
 	{
-		for (const auto& OutHit : OutHits)
+		return;
+	}
+
+	TArray<ACharacterBase*> FrozenEnemies;
+
+	for (const auto& OutHit : OutHits)
+	{
+		if (!::IsValid(OutHit.GetActor()))
 		{
-			if (::IsValid(OutHit.GetActor()))
-			{
-				ACharacterBase* Character = Cast<ACharacterBase>(OutHit.GetActor());
-				if (::IsValid(Character))
-				{
-					// 적팀일 경우에만 데미지 적용.
-					if (Character->TeamSide != this->TeamSide)
-					{
-						const FAbilityStatTable AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R, 0);
+			continue;
+		}
 
-						const float Character_AttackDamage = StatComponent->GetAttackDamage();
-						const float Character_AbilityPower = StatComponent->GetAbilityPower();
+		ACharacterBase* Character = Cast<ACharacterBase>(OutHit.GetActor());
+		if (!::IsValid(Character))
+		{
+			continue;
+		}
 
-						const float BaseAttackDamage = AbilityStatTable.Ability_AttackDamage;
-						const float BaseAbilityPower = AbilityStatTable.Ability_AbilityPower;
-						const float Ability_AD_Ratio = AbilityStatTable.Ability_AD_Ratio;
-						const float Ability_AP_Ratio = AbilityStatTable.Ability_AP_Ratio;
+		// 적 팀일 경우에만 데미지 적용
+		if (Character->TeamSide != this->TeamSide)
+		{
+			const float SlowDuration = UniqueAttributes.Contains("SlowDuration") ? UniqueAttributes["SlowDuration"] : 1.5f;
+			const float MovementSpeedSlow = UniqueAttributes.Contains("MovementSpeedSlow") ? UniqueAttributes["MovementSpeedSlow"] : 20.0f;
 
-						const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * Ability_AD_Ratio) + (BaseAbilityPower + Character_AbilityPower * Ability_AP_Ratio);
+			FDamageInfomation DamageInfomation;
+			DamageInfomation.AbilityID = EAbilityID::Ability_R;
+			DamageInfomation.CrowdControls.Add(FCrowdControlInformation(EBaseCrowdControl::Slow, SlowDuration, MovementSpeedSlow));
+			DamageInfomation.AddDamage(EDamageType::Magic, 0);
 
-						FDamageInfomation DamageInfomation;
-						DamageInfomation.AbilityID = EAbilityID::Ability_R;
-						DamageInfomation.AttackEffect = EAttackEffect::AbilityEffects;
-						DamageInfomation.AbilityEffects.Add(ECrowdControlBase::Stun);
-						DamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
+			ApplyDamage_Server(Character, DamageInfomation, GetController(), this);
 
-						ApplyDamage_Server(Character, DamageInfomation, GetController(), this);
-					}
-				}
-			}
+			FrozenEnemies.Add(Character);
 		}
 	}
 
+	const float ExplodeTime = UniqueAttributes.Contains("ExplodeTime") ? UniqueAttributes["ExplodeTime"] : 2.0f;
+	const int32 TimerID = static_cast<uint32>(EAbilityID::Ability_R);
+
+	// 폭발 타이머 설정
+	auto TimerCallback = [this, TimerID, AbilityStatTable, UniqueAttributes, FrozenEnemies]()
+		{
+			// 데미지 계산
+			const float Character_AttackDamage = StatComponent->GetAttackDamage();
+			const float Character_AbilityPower = StatComponent->GetAbilityPower();
+
+			const float BaseAttackDamage = AbilityStatTable.AttackDamage;
+			const float BaseAbilityDamage = AbilityStatTable.AbilityDamage;
+			const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
+			const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
+
+			const float HeroShatterAbilityDamage = UniqueAttributes.Contains("HeroShatterAbilityDamage") ? UniqueAttributes["HeroShatterAbilityDamage"] : 0.f;
+			const float NonHeroShatterAbilityDamage = UniqueAttributes.Contains("NonHeroShatterAbilityDamage") ? UniqueAttributes["NonHeroShatterAbilityDamage"] : 0.f;
+			const float InitialPowerScaling = UniqueAttributes.Contains("InitialPowerScaling") ? UniqueAttributes["InitialPowerScaling"] : 0.f;
+			const float PowerScalingOnHero = UniqueAttributes.Contains("PowerScalingOnHero") ? UniqueAttributes["PowerScalingOnHero"] : 0.f;
+			const float PowerScalingOnNonHero = UniqueAttributes.Contains("PowerScalingOnNonHero") ? UniqueAttributes["PowerScalingOnNonHero"] : 0.f;
+			const float ChainRadius = UniqueAttributes.Contains("ChainRadius") ? UniqueAttributes["ChainRadius"] : 500.f;
+			const float StunDuration = UniqueAttributes.Contains("StunDuration") ? UniqueAttributes["StunDuration"] : 1.f;
+
+			float FinalDamage = 0;
+
+			for (auto& FrozenEnemy : FrozenEnemies)
+			{
+				if (!::IsValid(FrozenEnemy)) continue;
+
+				FinalDamage = BaseAbilityDamage + Character_AbilityPower * InitialPowerScaling;
+
+				FDamageInfomation DamageInfomation;
+				DamageInfomation.AbilityID = EAbilityID::Ability_R;
+				DamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
+				DamageInfomation.CrowdControls.Add(FCrowdControlInformation(EBaseCrowdControl::Stun, StunDuration));
+
+				ApplyDamage_Server(FrozenEnemy, DamageInfomation, GetController(), this);
+
+				// 연쇄 폭발 처리
+				TArray<FOverlapResult> ChainHits;
+				FCollisionQueryParams ChainParams(NAME_None, false, this);
+				GetWorld()->OverlapMultiByChannel(
+					ChainHits,
+					FrozenEnemy->GetActorLocation(),
+					FQuat::Identity,
+					ECC_GameTraceChannel3,
+					FCollisionShape::MakeSphere(ChainRadius),
+					ChainParams
+				);
+
+				for (const auto& ChainHit : ChainHits)
+				{
+					ACharacterBase* ChainCharacter = Cast<ACharacterBase>(ChainHit.GetActor());
+					if (::IsValid(ChainCharacter) && ChainCharacter->TeamSide != this->TeamSide && !FrozenEnemies.Contains(ChainCharacter))
+					{
+						if (EnumHasAnyFlags(FrozenEnemy->ObjectType, EObjectType::Minion))
+						{
+							FinalDamage = (BaseAbilityDamage + Character_AbilityPower * PowerScalingOnNonHero) + NonHeroShatterAbilityDamage;
+						}
+						else if (EnumHasAnyFlags(FrozenEnemy->ObjectType, EObjectType::Player))
+						{
+							FinalDamage = (BaseAbilityDamage + Character_AbilityPower * PowerScalingOnHero) + HeroShatterAbilityDamage;
+						}
+
+						FDamageInfomation ChainDamageInfomation;
+						ChainDamageInfomation.AbilityID = EAbilityID::Ability_R;
+						ChainDamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
+
+						ApplyDamage_Server(FrozenEnemy, DamageInfomation, GetController(), this);
+					}
+				}
+			}
+		};
+
+	SetGameTimer(AbilityTimer, TimerID, TimerCallback, 1.0, false, ExplodeTime);
+
 #pragma region CollisionDebugDrawing
-	FColor DrawColor = true == bResult ? FColor::Green : FColor::Red;
+	FColor DrawColor = bResult ? FColor::Green : FColor::Red;
 	float DebugLifeTime = 5.f;
 
 	DrawDebugSphere(
@@ -973,6 +970,7 @@ void AAuroraCharacter::Ability_R_CheckHit()
 	);
 #pragma endregion
 }
+
 
 void AAuroraCharacter::Ability_LMB_CheckHit()
 {
@@ -1013,17 +1011,17 @@ void AAuroraCharacter::Ability_LMB_CheckHit()
 				// 적팀일 경우에만 데미지 적용.
 				if (Character->TeamSide != this->TeamSide)
 				{
-					const FAbilityStatTable AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_LMB, 0);
+					const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_LMB);
 
 					const float Character_AttackDamage = StatComponent->GetAttackDamage();
 					const float Character_AbilityPower = StatComponent->GetAbilityPower();
 
-					const float BaseAttackDamage = AbilityStatTable.Ability_AttackDamage;
-					const float BaseAbilityPower = AbilityStatTable.Ability_AbilityPower;
-					const float Ability_AD_Ratio = AbilityStatTable.Ability_AD_Ratio;
-					const float Ability_AP_Ratio = AbilityStatTable.Ability_AP_Ratio;
+					const float BaseAttackDamage = AbilityStatTable.AttackDamage;
+					const float BaseAbilityPower = AbilityStatTable.AbilityDamage;
+					const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
+					const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
 
-					const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * Ability_AD_Ratio) + (BaseAbilityPower + Character_AbilityPower * Ability_AP_Ratio);
+					const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
 
 					FDamageInfomation DamageInfomation;
 					DamageInfomation.AbilityID = EAbilityID::Ability_LMB;
@@ -1035,7 +1033,7 @@ void AAuroraCharacter::Ability_LMB_CheckHit()
 
 					/* Spawn HitSuccessImpact */
 					FTransform transform(FRotator(0), Character->GetMesh()->GetSocketLocation("Impact"), FVector(1));
-					SpawnRootedParicleAtLocation_Server(MeleeSuccessImpact, transform);
+					SpawnRootedParticleAtLocation_Server(MeleeSuccessImpact, transform);
 				}
 			}
 		}
@@ -1071,9 +1069,10 @@ void AAuroraCharacter::OnPreDamageReceived(float FinalDamage)
 	UE_LOG(LogTemp, Warning, TEXT("AAuroraCharacter::OnPreDamageReceived() FinalDamage: %f"), FinalDamage);
 }
 
+
 void AAuroraCharacter::ExecuteSomethingSpecial()
 {
-	GetCrowdControl(ECrowdControlBase::Blind, 2.0);
+	GetCrowdControl(EBaseCrowdControl::Blind, 2.0);
 }
 
 void AAuroraCharacter::MontageEnded(UAnimMontage* Montage, bool bInterrupted)
@@ -1084,60 +1083,147 @@ void AAuroraCharacter::MontageEnded(UAnimMontage* Montage, bool bInterrupted)
 	}
 	else if (Montage == Ability_E_Montage)
 	{
-		GetWorldTimerManager().ClearTimer(Ability_E_Timer);
-		GetCharacterMovement()->MaxWalkSpeed = StatComponent->GetMovementSpeed();
-		GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
-		GetCharacterMovement()->MaxAcceleration = 2048.f;
-		GetCharacterMovement()->GravityScale = 1.6f;
 		bUseControllerRotationYaw = true;
 	}
 	else
 	{
-		EnumAddFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+		/*ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::Move);
+		ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::Jump);
+		ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::SwitchAction);
+		ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::AbilityUsed);*/
 	}
 }
 
 void AAuroraCharacter::Ability_LMB_AttackEnded()
 {
 	Ability_LMB_CurrentComboCount = 0;
-}
 
-void AAuroraCharacter::Ability_E_Ended()
-{
-	AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_E);
-
-	Ability_E_Ended_Server();
-	GetWorldTimerManager().ClearTimer(Ability_E_Timer);
-	GetCharacterMovement()->MaxWalkSpeed = StatComponent->GetMovementSpeed();
-	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
-	GetCharacterMovement()->MaxAcceleration = 2048.f;
-	GetCharacterMovement()->GravityScale = 1.6f;
-}
-
-void AAuroraCharacter::Ability_E_Started_Server_Implementation()
-{
-	GetCharacterMovement()->MaxWalkSpeed = 2000.f;
-	GetCharacterMovement()->MinAnalogWalkSpeed = 1000.f;
-	GetCharacterMovement()->MaxAcceleration = 100000.f;
-}
-
-void AAuroraCharacter::Ability_E_Ended_Server_Implementation()
-{
-	GetCharacterMovement()->MaxWalkSpeed = StatComponent->GetMovementSpeed();
-	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
-	GetCharacterMovement()->MaxAcceleration = 2048.f;
-	GetCharacterMovement()->GravityScale = 1.6f;
-}
-
-void AAuroraCharacter::Ability_R_Started_Server_Implementation()
-{
-	if (!GetCharacterMovement()->IsFalling())
+	if (::IsValid(AnimInstance) == false)
 	{
-		LaunchCharacter(FVector(0, 0, Ability_R_BoostStrength), false, true);
+		return;
 	}
-	else
+
+	AnimInstance->StopAllMontages(0.2f);
+	StopAllMontages_Server(0.2);
+}
+
+void AAuroraCharacter::SetMovementSpeed_Server_Implementation(const float InMaxWalkSpeed, const float InMaxAcceleration)
+{
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	if (MovementComponent)
 	{
-		LaunchCharacter(FVector(0, 0, Ability_R_BoostStrength / 3), false, true);
+		MovementComponent->MaxWalkSpeed = 2000.f;
+		MovementComponent->MaxAcceleration = 100000.f;
 	}
+}
+
+void AAuroraCharacter::SpawnFreezeSegments_Server_Implementation(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInfomation DamageInfomation)
+{
+	if (HasAuthority())
+	{
+		SpawnFreezeSegments_Multicast(Transform, ParticleInfo, DamageInfomation);
+	}
+}
+
+void AAuroraCharacter::SpawnFreezeSegments_Multicast_Implementation(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInfomation DamageInfomation)
+{
+	if (HasAuthority())
+	{
+		return;
+	}
+
+	if (FreezeSegmentClass == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[Server] AAuroraCharacter::SpawnCircularParticles - Freeze Segment Class is nullptr."));
+		return;
+	}
+
+	AFreezeSegment* NewParticleActor = Cast<AFreezeSegment>(UGameplayStatics::BeginDeferredActorSpawnFromClass(GetWorld(), FreezeSegmentClass, Transform, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn, this));
+	if (NewParticleActor != nullptr)
+	{
+		NewParticleActor->InitializeParticle(ParticleInfo.Radius, ParticleInfo.NumParicles, ParticleInfo.Lifetime, ParticleInfo.Rate, ParticleInfo.Scale, DamageInfomation);
+		UGameplayStatics::FinishSpawningActor(NewParticleActor, Transform);
+	}
+}
+
+bool AAuroraCharacter::ValidateAbilityUsage()
+{
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Death))
+	{
+		return false;
+	}
+
+	if (bCtrlKeyPressed)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_Q] Ability cannot be used because the Ctrl key is pressed."));
+		return false;
+	}
+
+	if (::IsValid(StatComponent) == false || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_Q] StatComponent, AbilityStatComponent, or AnimInstance is null."));
+		return false;
+	}
+
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+void AAuroraCharacter::PlayeAbilityMontage(UAnimMontage* Montage, float PlayRate)
+{
+	if (::IsValid(Montage) == false)
+	{
+		return;
+	}
+
+	if (::IsValid(AnimInstance) == false)
+	{
+		return;
+	}
+
+	AnimInstance->PlayMontage(Montage, PlayRate);
+	PlayMontage_Server(Montage, PlayRate);
+}
+
+void AAuroraCharacter::ServerNotifyAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
+{
+	Super::ServerNotifyAbilityUse(AbilityID, TriggerEvent);
+
+	EBaseCharacterState NewState = CharacterState;
+
+	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::ServerNotifyAbilityUse Before CharacterState"));
+
+	switch (AbilityID)
+	{
+	case EAbilityID::Ability_Q:
+	case EAbilityID::Ability_E:
+	case EAbilityID::Ability_R:
+	case EAbilityID::Ability_RMB:
+		EnumRemoveFlags(NewState, EBaseCharacterState::Move);
+		EnumRemoveFlags(NewState, EBaseCharacterState::SwitchAction);
+		EnumAddFlags(NewState, EBaseCharacterState::AbilityUsed);
+		break;
+	case EAbilityID::Ability_LMB:
+		EnumRemoveFlags(NewState, EBaseCharacterState::SwitchAction);
+		break;
+	default:
+		UE_LOG(LogTemp, Warning, TEXT("Unknown AbilityID: %d"), static_cast<int32>(AbilityID));
+		break;
+	}
+
+	CharacterState = NewState;
+	SetCharacterState(static_cast<uint32>(NewState));
+
+	UpdateCharacterState(ReplicatedCharacterState);
+	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::ServerNotifyAbilityUse After CharacterState"));
+}
+
+void AAuroraCharacter::OnRep_CharacterStateChanged()
+{
+	Super::OnRep_CharacterStateChanged();
+
 }

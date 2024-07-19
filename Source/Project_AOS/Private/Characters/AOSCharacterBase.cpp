@@ -109,13 +109,7 @@ AAOSCharacterBase::AAOSCharacterBase()
 	FRotator PivotRotation(0.f, -90.f, 0.f);
 	GetMesh()->SetRelativeLocationAndRotation(PivotPosition, PivotRotation);
 
-	if (HasAuthority() == true)
-	{
-		GetCharacterMovement()->SetIsReplicated(true);
-	}
-
 	Index = -1;
-	CharacterState = EBaseCharacterState::Basic;
 	ObjectType = EObjectType::Player;
 
 	TotalAttacks = 0;
@@ -123,7 +117,7 @@ AAOSCharacterBase::AAOSCharacterBase()
 
 	GetCapsuleComponent()->SetCollisionProfileName(TEXT("AOSCharacter"));
 
-	SetReplicates(true);
+	GetCharacterMovement()->SetIsReplicated(true);
 
 	bIsCtrlKeyPressed = false;
 	PrimaryActorTick.bCanEverTick = true;
@@ -139,19 +133,27 @@ void AAOSCharacterBase::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (!HasAuthority() && IsLocallyControlled())
+	if (!HasAuthority())
 	{
-		if (PreviousCharacterState != CharacterState)
-		{
-			UpdateCharacterState_Server(CharacterState);
-			PreviousCharacterState = CharacterState;
-		}
-
 		if (PreviousForwardInputValue != ForwardInputValue || PreviousRightInputValue != RightInputValue)
 		{
 			UpdateInputValue_Server(ForwardInputValue, RightInputValue);
 		}
 	}
+}
+
+//==================== Replication Functions ====================//
+
+void AAOSCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+		
+	DOREPLIFETIME_CONDITION(ThisClass, ForwardInputValue, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(ThisClass, RightInputValue, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(ThisClass, CurrentAimPitch, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(ThisClass, CurrentAimYaw, COND_SkipOwner);
+	DOREPLIFETIME(ThisClass, CrowdControlState);
+	DOREPLIFETIME(ThisClass, bIsDead);
 }
 
 void AAOSCharacterBase::BeginPlay()	
@@ -246,7 +248,7 @@ void AAOSCharacterBase::BeginPlay()
 		if (!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerCharacter(this, 0))
 		{
 			AnimInstance->OnEnableMoveNotifyBegin.BindUObject(this, &AAOSCharacterBase::EnableCharacterMove);
-			AnimInstance->OnEnableSwithActionNotifyBegin.BindUObject(this, &AAOSCharacterBase::EnableSwitchAtion);
+			AnimInstance->OnEnableSwitchActionNotifyBegin.BindUObject(this, &AAOSCharacterBase::EnableSwitchAction);
 		}
 	}
 
@@ -343,7 +345,7 @@ void AAOSCharacterBase::UpgradeAbility(EAbilityID AbilityID, TFunction<void(int3
 		return;
 	}
 
-	FAbilityAttributes Ability_StatTable = AbilityStatComponent->GetAbilityInfomation(AbilityID);
+	FAbilityDetails Ability_StatTable = AbilityStatComponent->GetAbilityInfomation(AbilityID);
 
 	// 능력이 업그레이드 가능한지 확인 및 레벨 체크
 	if (!Ability_StatTable.bIsUpgradable || Ability_StatTable.CurrentLevel >= Ability_StatTable.MaxLevel)
@@ -530,21 +532,6 @@ void AAOSCharacterBase::HandleCtrlKeyInput(bool bPressed)
 		bCtrlKeyPressed = false;
 		UKismetSystemLibrary::PrintString(GetWorld(), TEXT("AAOSCharacterBase::OnCtrlKeyReleased()"), true, true, FColor::Yellow, 1.0f);
 	}
-}
-
-//==================== Replication Functions ====================//
-
-void AAOSCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	//DOREPLIFETIME_CONDITION(ThisClass, CharacterState, COND_SkipOwner);
-	DOREPLIFETIME(ThisClass, ForwardInputValue);
-	DOREPLIFETIME(ThisClass, RightInputValue);
-	DOREPLIFETIME(ThisClass, CurrentAimPitch);
-	DOREPLIFETIME(ThisClass, CurrentAimYaw);
-	DOREPLIFETIME(ThisClass, CrowdControl);
-	DOREPLIFETIME(ThisClass, bIsDead);
 }
 
 //==================== Widget Functions ====================//
@@ -747,13 +734,14 @@ void AAOSCharacterBase::ApplyDamage_Server_Implementation(ACharacterBase* Enemy,
 	if (DamageInfomation.AbilityID == EAbilityID::Ability_LMB)
 	{
 		// 실명 상태일 경우 기본 공격이 실패
-		if (EnumHasAnyFlags(CrowdControl, ECrowdControlBase::Blind))
+		if (EnumHasAnyFlags(CrowdControlState, EBaseCrowdControl::Blind))
 		{
 			// To do: 블라인드 상태 처리
 			return;
 		}
 	}
 
+	// 공격 적중 가능 여부 확인.
 	bool bResult = Enemy->ValidateHit(DamageInfomation.AbilityID);
 	if (!bResult)
 	{
@@ -778,7 +766,17 @@ void AAOSCharacterBase::ApplyDamage_Server_Implementation(ACharacterBase* Enemy,
 		OnAbilityEffectsEventTriggered.Broadcast(DamageInfomation);
 	}
 
+	// 데미지 적용
 	Enemy->ReceiveDamage(DamageInfomation, EventInstigator, DamageCauser);
+
+	// 상태이상 이벤트 처리
+	if (DamageInfomation.CrowdControls.Num() > 0)
+	{
+		for (auto& CrowdControl : DamageInfomation.CrowdControls)
+		{
+			ApplayCrowdControl_Server(Enemy, CrowdControl.Type, CrowdControl.Duration, CrowdControl.Percent);
+		}
+	}
 }
 
 //==================== Crowd Control Functions ====================//
@@ -794,42 +792,43 @@ void AAOSCharacterBase::ApplyDamage_Server_Implementation(ACharacterBase* Enemy,
  * @param InDuration 군중 제어가 적용되는 지속 시간입니다.
  * @param InPercent 군중 제어의 효과 강도를 나타내는 백분율입니다. (0.0 ~ 1.0)
  */
-void AAOSCharacterBase::GetCrowdControl(ECrowdControlBase InCondition, float InDuration, float InPercent)
+void AAOSCharacterBase::GetCrowdControl(EBaseCrowdControl InCondition, float InDuration, float InPercent)
 {
 	float Percent = FMath::Clamp<float>(InPercent, 0.0f, 1.0f);
 
 	switch (InCondition)
 	{
-	case ECrowdControlBase::None:
+	case EBaseCrowdControl::None:
 		break;
 
-	case ECrowdControlBase::Slow: // 이동속도 둔화
+	case EBaseCrowdControl::Slow: // 이동속도 둔화
 		ApplyMovementSpeedDebuff(Percent, InDuration);
 		break;
 
-	case ECrowdControlBase::Cripple: // 공격속도 둔화
+	case EBaseCrowdControl::Cripple: // 공격속도 둔화
 		ApplyAttackSpeedDebuff(Percent, InDuration);
 		break;
 
-	case ECrowdControlBase::Silence: // 침묵 (스킬 사용 불가)
+	case EBaseCrowdControl::Silence: // 침묵 (스킬 사용 불가)
 		ApplySilenceDebuff(InDuration);
 		break;
 
-	case ECrowdControlBase::Blind: // 실명 (기본 공격 빗나감)
+	case EBaseCrowdControl::Blind: // 실명 (기본 공격 빗나감)
 		ApplyBlindDebuff(InDuration);
 		break;
 
-	case ECrowdControlBase::BlockedSight: // 시야 차단
+	case EBaseCrowdControl::BlockedSight: // 시야 차단
 		break;
 
-	case ECrowdControlBase::Snare: // 속박
+	case EBaseCrowdControl::Snare: // 속박
+		ApplySnareDebuff(InDuration);
 		break;
 
-	case ECrowdControlBase::Stun: // 기절
+	case EBaseCrowdControl::Stun: // 기절
 		ApplyStunDebuff(InDuration);
 		break;
 
-	case ECrowdControlBase::Taunt: // 도발
+	case EBaseCrowdControl::Taunt: // 도발
 		break;
 
 	default:
@@ -840,68 +839,71 @@ void AAOSCharacterBase::GetCrowdControl(ECrowdControlBase InCondition, float InD
 void AAOSCharacterBase::ApplyMovementSpeedDebuff(float Percent, float Duration)
 {
 	LastMovementSpeed = StatComponent->GetMovementSpeed();
-	ChangeMovementSpeed(0, LastMovementSpeed * (1 - Percent));
-	EnumAddFlags(CrowdControl, ECrowdControlBase::Slow);
 
-	GetWorld()->GetTimerManager().SetTimer(
-		CrowdControlTimer,
-		FTimerDelegate::CreateLambda([this]()
-			{
-				ChangeMovementSpeed(0, LastMovementSpeed);
-				EnumRemoveFlags(CrowdControl, ECrowdControlBase::Slow);
-			}),
-		Duration,
-		false
-	);
+	StatComponent->SetMovementSpeed(LastMovementSpeed * Percent);
+	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Slow);
+
+	auto TimerCallback = [this]()
+		{
+			StatComponent->SetMovementSpeed(LastMovementSpeed);
+			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Slow);
+		};
+
+	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Slow), TimerCallback, Duration, false, Duration);
 }
 
 void AAOSCharacterBase::ApplyAttackSpeedDebuff(float Percent, float Duration)
 {
 	LastAttackSpeed = StatComponent->GetAttackSpeed();
 	StatComponent->SetAttackSpeed(LastAttackSpeed * (1 - Percent));
-	EnumAddFlags(CrowdControl, ECrowdControlBase::Cripple);
+	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Cripple);
 
-	GetWorld()->GetTimerManager().SetTimer(
-		CrowdControlTimer,
-		FTimerDelegate::CreateLambda([this]()
-			{
-				StatComponent->SetAttackSpeed(LastAttackSpeed);
-				EnumRemoveFlags(CrowdControl, ECrowdControlBase::Cripple);
-			}),
-		Duration,
-		false
-	);
+	auto TimerCallback = [this]()
+		{
+			StatComponent->SetAttackSpeed(LastAttackSpeed);
+			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Cripple);
+		};
+
+	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Cripple), TimerCallback, Duration, false, Duration);
 }
 
 void AAOSCharacterBase::ApplySilenceDebuff(float Duration)
 {
 	AbilityStatComponent->BanUseAbilityFewSeconds(Duration);
-	EnumAddFlags(CrowdControl, ECrowdControlBase::Silence);
+	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Silence);
 
-	GetWorld()->GetTimerManager().SetTimer(
-		CrowdControlTimer,
-		FTimerDelegate::CreateLambda([this]()
-			{
-				EnumRemoveFlags(CrowdControl, ECrowdControlBase::Silence);
-			}),
-		Duration,
-		false
-	);
+	auto TimerCallback = [this]()
+		{
+			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Silence);
+		};
+
+	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Silence), TimerCallback, Duration, false, Duration);
 }
 
 void AAOSCharacterBase::ApplyBlindDebuff(float Duration)
 {
-	EnumAddFlags(CrowdControl, ECrowdControlBase::Blind);
+	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Blind);
 
-	GetWorld()->GetTimerManager().SetTimer(
-		CrowdControlTimer,
-		FTimerDelegate::CreateLambda([this]()
-			{
-				EnumRemoveFlags(CrowdControl, ECrowdControlBase::Blind);
-			}),
-		Duration,
-		false
-	);
+	auto TimerCallback = [this]()
+		{
+			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Blind);
+		};
+
+	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Blind), TimerCallback, Duration, false, Duration);
+}
+
+void AAOSCharacterBase::ApplySnareDebuff(float Duration)
+{
+	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Snare);
+	EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
+
+	auto TimerCallback = [this]()
+		{
+			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Snare);
+			EnumAddFlags(CharacterState, EBaseCharacterState::Move);
+		};
+
+	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Blind), TimerCallback, Duration, false, Duration);
 }
 
 void AAOSCharacterBase::ApplyStunDebuff(float Duration)
@@ -911,33 +913,34 @@ void AAOSCharacterBase::ApplyStunDebuff(float Duration)
 		AnimInstance->StopAllMontages(0.1f);
 		AnimInstance->PlayMontage(Stun_Montage, 1.0f);
 	}
+
 	AbilityStatComponent->BanUseAbilityFewSeconds(Duration);
 	EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
 
-	GetWorld()->GetTimerManager().SetTimer(
-		CrowdControlTimer,
-		FTimerDelegate::CreateLambda([this]()
+	auto TimerCallback = [this]()
+		{
+			EnumAddFlags(CharacterState, EBaseCharacterState::Move);
+			if (::IsValid(AnimInstance))
 			{
-				EnumAddFlags(CharacterState, EBaseCharacterState::Move);
-				if (::IsValid(AnimInstance))
-				{
-					AnimInstance->StopAllMontages(0.3f);
-				}
-			}),
-		Duration,
-		false
-	);
+				AnimInstance->StopAllMontages(0.3f);
+			}
+		};
+
+	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Blind), TimerCallback, Duration, false, Duration);
 }
 
-void AAOSCharacterBase::ApplayCrowdControl_Server_Implementation(ACharacterBase* Enemy, ECrowdControlBase InCondition, float InDuration, float InPercent)
+
+
+void AAOSCharacterBase::ApplayCrowdControl_Server_Implementation(ACharacterBase* Enemy, EBaseCrowdControl InCondition, float InDuration, float InPercent)
 {
 	if (HasAuthority())
 	{
-		ApplayCrowdControl_NetMulticast(Enemy, InCondition, InDuration, InPercent);
+		Enemy->GetCrowdControl(InCondition, InDuration, InPercent);
+		//ApplayCrowdControl_NetMulticast(Enemy, InCondition, InDuration, InPercent);
 	}
 }
 
-void AAOSCharacterBase::ApplayCrowdControl_NetMulticast_Implementation(ACharacterBase* Enemy, ECrowdControlBase InCondition, float InDuration, float InPercent)
+void AAOSCharacterBase::ApplayCrowdControl_NetMulticast_Implementation(ACharacterBase* Enemy, EBaseCrowdControl InCondition, float InDuration, float InPercent)
 {
 	if (::IsValid(Enemy))
 	{
@@ -947,15 +950,15 @@ void AAOSCharacterBase::ApplayCrowdControl_NetMulticast_Implementation(ACharacte
 
 //==================== Particle Functions ====================//
 
-void AAOSCharacterBase::SpawnRootedParicleAtLocation_Server_Implementation(UParticleSystem* Particle, FTransform Transform)
+void AAOSCharacterBase::SpawnRootedParticleAtLocation_Server_Implementation(UParticleSystem* Particle, FTransform Transform)
 {
 	if (HasAuthority())
 	{
-		SpawnRootedParicleAtLocation_Multicast(Particle, Transform);
+		SpawnRootedParticleAtLocation_Multicast(Particle, Transform);
 	}
 }
 
-void AAOSCharacterBase::SpawnRootedParicleAtLocation_Multicast_Implementation(UParticleSystem* Particle, FTransform Transform)
+void AAOSCharacterBase::SpawnRootedParticleAtLocation_Multicast_Implementation(UParticleSystem* Particle, FTransform Transform)
 {
 	if (!HasAuthority())
 	{
@@ -963,140 +966,20 @@ void AAOSCharacterBase::SpawnRootedParicleAtLocation_Multicast_Implementation(UP
 	}
 }
 
-void AAOSCharacterBase::SpawnAttachedParicleAtLocation_Server_Implementation(UParticleSystem* Particle, FTransform Transform)
+void AAOSCharacterBase::SpawnAttachedParticleAtLocation_Server_Implementation(UParticleSystem* Particle, FTransform Transform)
 {
 	if (HasAuthority())
 	{
-		SpawnAttachedParicleAtLocation_Multicast(Particle, Transform);
+		SpawnAttachedParticleAtLocation_Multicast(Particle, Transform);
 	}
 }
 
-void AAOSCharacterBase::SpawnAttachedParicleAtLocation_Multicast_Implementation(UParticleSystem* Particle, FTransform Transform)
+void AAOSCharacterBase::SpawnAttachedParticleAtLocation_Multicast_Implementation(UParticleSystem* Particle, FTransform Transform)
 {
 	if (!HasAuthority())
 	{
 		UGameplayStatics::SpawnEmitterAttached(
 			Particle, GetMesh(), "Name_None", Transform.GetLocation(), Transform.GetRotation().Rotator(), Transform.GetScale3D(), EAttachLocation::KeepWorldPosition, true, EPSCPoolMethod::None, true
-		);
-	}
-}
-
-void AAOSCharacterBase::SpawnCircularParicleAtLocation_Server_Implementation(UParticleSystem* Particle, FCircularParticleInfomation CircularParticleInfomation, FTransform InTransform)
-{
-	if (HasAuthority())
-	{
-		SpawnCircularParicleAtLocation_Multicast(Particle, CircularParticleInfomation, InTransform);
-	}
-}
-void AAOSCharacterBase::SpawnCircularParicleAtLocation_Multicast_Implementation(UParticleSystem* Particle, FCircularParticleInfomation CircularParticleInfomation, FTransform InTransform)
-{
-	if (!HasAuthority() && IsLocallyControlled())
-	{
-		if (!Particle || !IsValid(Particle))
-		{
-			UE_LOG(LogTemp, Error, TEXT("[AAOSCharacterBase::SpawnCircularParicleAtLocation_Multicast] ParticleSystem is null"));
-			return;
-		}
-
-		FCircularParticleInfomation NewParticle;
-		FTimerHandle NewTimereHandle;
-
-		NewParticle = CircularParticleInfomation;
-		NewParticle.Iterator = 0;
-		NewParticle.ParticleID = ParticleInfoList.Num(); // 고유 ID를 배열 크기로 설정
-		NewParticle.Particle = Particle;
-		NewParticle.Transform = InTransform;
-
-		TimerHandleList.Add(NewTimereHandle);
-		ParticleInfoList.Add(NewParticle);
-
-		int32 ParticleID = NewParticle.ParticleID;
-
-		// 방어 코드: TimerHandleList와 ParticleInfoList의 크기 확인
-		if (TimerHandleList.Num() != ParticleInfoList.Num())
-		{
-			UE_LOG(LogTemp, Error, TEXT("TimerHandleList and ParticleInfoList size mismatch."));
-			return;
-		}
-
-		GetWorldTimerManager().SetTimer(
-			TimerHandleList[ParticleID],
-			[this, ParticleID]()
-			{
-				if (!ParticleInfoList.IsValidIndex(ParticleID) || !TimerHandleList.IsValidIndex(ParticleID))
-				{
-					UE_LOG(LogTemp, Error, TEXT("Invalid ParticleID: %d"), ParticleID);
-
-					if (TimerHandleList.IsValidIndex(ParticleID))
-					{
-						GetWorldTimerManager().ClearTimer(TimerHandleList[ParticleID]);
-						TimerHandleList.RemoveAt(ParticleID);
-					}
-					if (ParticleInfoList.IsValidIndex(ParticleID))
-					{
-						ParticleInfoList.RemoveAt(ParticleID);
-					}
-
-					return;
-				}
-
-				FCircularParticleInfomation& Info = ParticleInfoList[ParticleID];
-
-				if (!Info.Particle || !Info.IsValid())
-				{
-					UE_LOG(LogTemp, Error, TEXT("Invalid Particle in ParticleInfoList at ID: %d"), ParticleID);
-					return;
-				}
-
-				const FVector Location = Info.Transform.GetLocation();
-				const FVector Scale = Info.Transform.GetScale3D();
-				const FVector ForwardVector = Info.ForwardVector;
-				const FVector UpVector = Info.UpVector;
-
-				const int32 Iterator = Info.Iterator;
-				const int32 Particles = Info.NumOfParicles;
-
-				const float Angle = Info.Angle;
-				const float AngleRad = FMath::DegreesToRadians(Iterator * Angle);
-				const float Radius = Info.Radius;
-				const float Lifetime = Info.Lifetime;
-				const float Rate = Info.Rate;
-
-				FVector SpawnLocation = Location + ForwardVector.RotateAngleAxis(Iterator * Angle, UpVector) * Radius;
-				FRotator SpawnRotation = ForwardVector.Rotation();
-				SpawnRotation.Yaw += Iterator * Angle + 90;
-
-				UParticleSystemComponent* PSC = UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Info.Particle, SpawnLocation, SpawnRotation, Scale, false, EPSCPoolMethod::AutoRelease, false);
-				if (PSC)
-				{
-					//UE_LOG(LogTemp, Warning, TEXT("[AOSCharacterBase::SpawnCircularParicleAtLocation] Spawn rooted particle %d %f"), Iterator, (Particles - Iterator - 1) * Rate + Lifetime);
-					PSC->SetFloatParameter(FName("AbilityDuration"), (Particles - Iterator - 1) * Rate + Lifetime);
-					PSC->SetFloatParameter(FName("DurationRange"), (Particles - Iterator - 1) * Rate + Lifetime);
-					PSC->Activate();
-				}
-				else
-				{
-					UE_LOG(LogTemp, Error, TEXT("Failed to spawn particle system at ID: %d"), ParticleID);
-				}
-
-				Info.Iterator++;
-
-				if (Info.Iterator >= Particles)
-				{
-					if (TimerHandleList.IsValidIndex(ParticleID))
-					{
-						GetWorldTimerManager().ClearTimer(TimerHandleList[ParticleID]);
-						TimerHandleList.RemoveAt(ParticleID);
-					}
-					if (ParticleInfoList.IsValidIndex(ParticleID))
-					{
-						ParticleInfoList.RemoveAt(ParticleID);
-					}
-				}
-			},
-			NewParticle.Rate,
-			true,
-			NewParticle.Delay
 		);
 	}
 }
@@ -1115,7 +998,7 @@ void AAOSCharacterBase::SpawnLevelUpParticle(int32 OldLevel, int32 NewLevel)
 	}
 
 	LastCharacterLocation = GetActorLocation() - FVector(0, 0, 75.f);
-	SpawnRootedParicleAtLocation_Server(LevelUpParticle, FTransform(FRotator(1), LastCharacterLocation, FVector(1)));
+	SpawnRootedParticleAtLocation_Server(LevelUpParticle, FTransform(FRotator(1), LastCharacterLocation, FVector(1)));
 }
 
 
@@ -1211,15 +1094,17 @@ void AAOSCharacterBase::StopAllMontages_Server_Implementation(float BlendOut)
 
 void AAOSCharacterBase::StopAllMontages_NetMulticast_Implementation(float BlendOut)
 {
-	if (!HasAuthority() && GetOwner() != UGameplayStatics::GetPlayerController(this, 0))
+	if ((!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerController(this, 0)) || IsLocallyControlled())
 	{
-		if (::IsValid(AnimInstance) == false)
-		{
-			return;
-		}
-
-		AnimInstance->StopAllMontages(BlendOut);
+		return;
 	}
+
+	if (::IsValid(AnimInstance) == false)
+	{
+		return;
+	}
+
+	AnimInstance->StopAllMontages(BlendOut);
 }
 
 void AAOSCharacterBase::PlayMontage_Server_Implementation(UAnimMontage* Montage, float PlayRate)
@@ -1229,15 +1114,17 @@ void AAOSCharacterBase::PlayMontage_Server_Implementation(UAnimMontage* Montage,
 
 void AAOSCharacterBase::PlayMontage_NetMulticast_Implementation(UAnimMontage* Montage, float PlayRate)
 {
-	if (!HasAuthority() && GetOwner() != UGameplayStatics::GetPlayerController(this, 0))
+	if ((!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerController(this, 0)) || IsLocallyControlled())
 	{
-		if (::IsValid(AnimInstance) == false)
-		{
-			return;
-		}
-
-		AnimInstance->PlayMontage(Montage, PlayRate);
+		return;
 	}
+
+	if (::IsValid(AnimInstance) == false || ::IsValid(Montage) == false)
+	{
+		return;
+	}
+
+	AnimInstance->PlayMontage(Montage, PlayRate);
 }
 
 void AAOSCharacterBase::MontageJumpToSection_Server_Implementation(UAnimMontage* Montage, FName SectionName, float PlayRate)
@@ -1247,16 +1134,18 @@ void AAOSCharacterBase::MontageJumpToSection_Server_Implementation(UAnimMontage*
 
 void AAOSCharacterBase::MontageJumpToSection_NetMulticast_Implementation(UAnimMontage* Montage, FName SectionName, float PlayRate)
 {
-	if (!HasAuthority() && GetOwner() != UGameplayStatics::GetPlayerController(this, 0))
+	if ((!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerController(this, 0)) || IsLocallyControlled())
 	{
-		if (::IsValid(AnimInstance) == false)
-		{
-			return;
-		}
-
-		AnimInstance->Montage_SetPlayRate(Montage, PlayRate);
-		AnimInstance->Montage_JumpToSection(SectionName, Montage);
+		return;
 	}
+
+	if (::IsValid(AnimInstance) == false || ::IsValid(Montage) == false)
+	{
+		return;
+	}
+
+	AnimInstance->Montage_SetPlayRate(Montage, PlayRate);
+	AnimInstance->Montage_JumpToSection(SectionName, Montage);
 }
 
 //==================== HP/MP Regeneration Functions ====================//
@@ -1400,7 +1289,7 @@ void AAOSCharacterBase::OnCharacterDeath()
 	GetWorldTimerManager().ClearTimer(HPReganTimer);
 	GetWorldTimerManager().ClearTimer(MPReganTimer);
 
-	EnumAddFlags(CharacterState, EBaseCharacterState::Dead);
+	EnumAddFlags(CharacterState, EBaseCharacterState::Death);
 
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
@@ -1474,7 +1363,7 @@ void AAOSCharacterBase::Respawn()
 {
 	UE_LOG(LogTemp, Log, TEXT("[AAOSCharacterBase::Respawn] Calling Respawn Function."));
 
-	EnumRemoveFlags(CharacterState, EBaseCharacterState::Dead);
+	EnumRemoveFlags(CharacterState, EBaseCharacterState::Death);
 
 	GetCapsuleComponent()->SetCollisionProfileName(FName("AOSCharacter"));
 	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
@@ -1501,7 +1390,7 @@ float AAOSCharacterBase::SetAnimPlayRate(const float AnimLength)
 {
 	if (!::IsValid(StatComponent))
 	{
-		UE_LOG(LogTemp, Error, TEXT("SetAnimPlayRate: StatComponentis null."));
+		UE_LOG(LogTemp, Error, TEXT("SetAnimPlayRate: StatComponent is null."));
 		return 1.0f; // 기본 재생 속도 반환
 	}
 
@@ -1509,20 +1398,32 @@ float AAOSCharacterBase::SetAnimPlayRate(const float AnimLength)
 	float AttackIntervalTime = 1.0f / CurrentAttackSpeed;
 
 	// 애니메이션 재생 속도 계산
-	return (AttackIntervalTime < AnimLength) ? (AnimLength / AttackIntervalTime) : 1.0f;
+	float PlayRate = (AttackIntervalTime < AnimLength) ? (AnimLength / AttackIntervalTime) : 1.0f;
+
+	// 최소 및 최대 재생 속도 제한
+	const float MinPlayRate = 0.5f;
+	const float MaxPlayRate = 2.0f;
+	PlayRate = FMath::Clamp(PlayRate, MinPlayRate, MaxPlayRate);
+
+	return PlayRate;
 }
 
 //==================== Character Control Functions ====================//
 
-void AAOSCharacterBase::EnableCharacterMove()
+void AAOSCharacterBase::EnableCharacterMove_Implementation()
 {
 	EnumAddFlags(CharacterState, EBaseCharacterState::Move);
+	UpdateCharacterState(static_cast<uint32>(CharacterState));
+	LogCharacterState(CharacterState, TEXT("AAOSCharacterBase::EnableCharacterMove"));
 }
 
-void AAOSCharacterBase::EnableSwitchAtion()
+void AAOSCharacterBase::EnableSwitchAction_Implementation()
 {
 	EnumAddFlags(CharacterState, EBaseCharacterState::SwitchAction);
+	UpdateCharacterState(static_cast<uint32>(CharacterState));
+	LogCharacterState(CharacterState, TEXT("AAOSCharacterBase::EnableSwitchAction"));
 }
+
 
 void AAOSCharacterBase::EnableUseControllerRotationYaw()
 {
@@ -1536,3 +1437,76 @@ const FName AAOSCharacterBase::GetAttackMontageSection(const int32& Section)
 	return FName(*FString::Printf(TEXT("Attack%d"), Section));
 }
 
+
+void AAOSCharacterBase::SaveCharacterTransform()
+{
+	// 현재 캐릭터의 위치, 회전, 방향 벡터를 저장
+	LastCharacterLocation = GetActorLocation() - FVector(0, 0, 95.f);
+	LastCharacterRotation = GetActorRotation();
+	LastForwardVector = GetActorForwardVector();
+	LastRightVector = GetActorRightVector();
+	LastUpVector = GetActorUpVector();
+}
+
+void AAOSCharacterBase::RegisterAbilityStage(EAbilityID AbilityID, int32 Stage, FAbilityStageFunction AbilityFunction)
+{
+	if (!AbilityStageMap.Contains(AbilityID))
+	{
+		AbilityStageMap.Add(AbilityID, TMap<int32, TArray<FAbilityStageFunction>>());
+	}
+
+	if (!AbilityStageMap[AbilityID].Contains(Stage))
+	{
+		AbilityStageMap[AbilityID].Add(Stage, TArray<FAbilityStageFunction>());
+	}
+
+	AbilityStageMap[AbilityID][Stage].Add(AbilityFunction);
+}
+
+void AAOSCharacterBase::ExecuteAbilityStages(EAbilityID AbilityID)
+{
+	if (AbilityStageMap.Contains(AbilityID))
+	{
+		// 스테이지 번호를 오름차순으로 정렬하여 순서대로 실행
+		TMap<int32, TArray<FAbilityStageFunction>>& StagesMap = AbilityStageMap[AbilityID];
+		TArray<int32> Stages;
+		StagesMap.GetKeys(Stages);
+		Stages.Sort();
+
+		for (int32 Stage : Stages)
+		{
+			for (FAbilityStageFunction& Function : StagesMap[Stage])
+			{
+				Function.ExecuteIfBound();
+			}
+		}
+	}
+}
+
+void AAOSCharacterBase::SetGameTimer(TMap<int32, FTimerHandle>& Timers, int32 TimerID, TFunction<void()> Callback, float Duration, bool bLoop, float FirstDelay)
+{
+	FTimerHandle& TimerHandle = Timers.FindOrAdd(TimerID);
+	FTimerDelegate TimerDelegate = FTimerDelegate::CreateLambda(Callback);
+	GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, Duration, bLoop, FirstDelay);
+}
+
+void AAOSCharacterBase::ClearGameTimer(TMap<int32, FTimerHandle>& Timers, int32 TimerID)
+{
+	FTimerHandle* TimerHandle = Timers.Find(TimerID);
+	if (TimerHandle)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(*TimerHandle);
+		Timers.Remove(TimerID);
+	}
+}
+
+void AAOSCharacterBase::ServerNotifyAbilityUse_Implementation(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
+{
+
+}
+
+void AAOSCharacterBase::OnRep_CharacterStateChanged()
+{
+	Super::OnRep_CharacterStateChanged();
+
+}

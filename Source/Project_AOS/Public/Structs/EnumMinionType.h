@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 
-UENUM(meta = (UseEnumValuesAsMaskValuesInEditor = "true"))
-enum class EMinionType : uint32
+UENUM(BlueprintType)
+enum class EMinionType : uint8
 {
 	None,
 	Melee,

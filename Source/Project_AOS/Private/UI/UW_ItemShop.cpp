@@ -19,7 +19,7 @@
 #include "Game/AOSPlayerState.h"
 #include "Item/Item.h"
 #include "Item/ItemData.h"
-#include "Structs/StructItemAbility.h"
+#include "Structs/ItemAbilityData.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/WidgetTree.h"
 

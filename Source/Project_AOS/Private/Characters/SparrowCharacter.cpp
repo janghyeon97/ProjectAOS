@@ -23,7 +23,7 @@
 
 ASparrowCharacter::ASparrowCharacter()
 {
-	static ConstructorHelpers::FClassFinder<UClass> ARROW_CLASS (TEXT("/Game/ProjectAOS/Characters/Sparrow/Blueprints/BP_Arrow.BP_Arrow"));
+	static ConstructorHelpers::FClassFinder<UClass> ARROW_CLASS(TEXT("/Game/ProjectAOS/Characters/Sparrow/Blueprints/BP_Arrow.BP_Arrow"));
 	if (ARROW_CLASS.Succeeded()) BasicArrowClass = ARROW_CLASS.Class;
 
 	InitializeAbilityMontages();
@@ -159,37 +159,37 @@ void ASparrowCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 
 void ASparrowCharacter::InitializeAbilityMontages()
 {
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_Q_MONTAGE (TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Q_Ability_Montage.Q_Ability_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_Q_MONTAGE(TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Q_Ability_Montage.Q_Ability_Montage"));
 	if (ABILITY_Q_MONTAGE.Succeeded()) Ability_Q_Montage = ABILITY_Q_MONTAGE.Object;
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_E_MONTAGE (TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_E_Montage.Ability_E_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_E_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_E_Montage.Ability_E_Montage"));
 	if (ABILITY_E_MONTAGE.Succeeded()) Ability_E_Montage = ABILITY_E_MONTAGE.Object;
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_R_MONTAGE (TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_R_Montage.Ability_R_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_R_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_R_Montage.Ability_R_Montage"));
 	if (ABILITY_R_MONTAGE.Succeeded()) Ability_R_Montage = ABILITY_R_MONTAGE.Object;
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_LMB_MONTAGE (TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Primary_Fire_Med_Montage.Primary_Fire_Med_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_LMB_MONTAGE(TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Primary_Fire_Med_Montage.Primary_Fire_Med_Montage"));
 	if (ABILITY_LMB_MONTAGE.Succeeded()) Ability_LMB_Montage = ABILITY_LMB_MONTAGE.Object;
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_LMB_FAST_MONTAGE (TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Primary_Fire_Fast_Montage.Primary_Fire_Fast_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_LMB_FAST_MONTAGE(TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Primary_Fire_Fast_Montage.Primary_Fire_Fast_Montage"));
 	if (ABILITY_LMB_FAST_MONTAGE.Succeeded()) Ability_LMB_FastMontage = ABILITY_LMB_FAST_MONTAGE.Object;
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_LMB_SLOW_MONTAGE (TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Primary_Fire_Slow_Montage.Primary_Fire_Slow_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_LMB_SLOW_MONTAGE(TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Primary_Fire_Slow_Montage.Primary_Fire_Slow_Montage"));
 	if (ABILITY_LMB_SLOW_MONTAGE.Succeeded()) Ability_LMB_SlowMontage = ABILITY_LMB_SLOW_MONTAGE.Object;
 
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_RMB_MONTAGE (TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Ability_RMB_Montage.Ability_RMB_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_RMB_MONTAGE(TEXT("/Game/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Animations/Ability_RMB_Montage.Ability_RMB_Montage"));
 	if (ABILITY_RMB_MONTAGE.Succeeded()) Ability_RMB_Montage = ABILITY_RMB_MONTAGE.Object;
 }
 
 void ASparrowCharacter::InitializeAbilityParticles()
 {
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ABILITY_Q_RAINOFARROWS (TEXT("/Game/Paragon/ParagonSparrow/FX/Particles/Sparrow/Abilities/RainOfArrows/FX/P_RainofArrows.P_RainofArrows"));
+	static ConstructorHelpers::FObjectFinder<UParticleSystem> ABILITY_Q_RAINOFARROWS(TEXT("/Game/Paragon/ParagonSparrow/FX/Particles/Sparrow/Abilities/RainOfArrows/FX/P_RainofArrows.P_RainofArrows"));
 	if (ABILITY_Q_RAINOFARROWS.Succeeded()) Ability_Q_RainOfArrows = ABILITY_Q_RAINOFARROWS.Object;
 
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ARROW_PARTICLE_LMB (TEXT("/Game/Paragon/ParagonSparrow/FX/Particles/Sparrow/Abilities/Primary/FX/P_Sparrow_PrimaryAttack.P_Sparrow_PrimaryAttack"));
+	static ConstructorHelpers::FObjectFinder<UParticleSystem> ARROW_PARTICLE_LMB(TEXT("/Game/Paragon/ParagonSparrow/FX/Particles/Sparrow/Abilities/Primary/FX/P_Sparrow_PrimaryAttack.P_Sparrow_PrimaryAttack"));
 	if (ARROW_PARTICLE_LMB.Succeeded()) ArrowParticle_LMB = ARROW_PARTICLE_LMB.Object;
 
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ARROW_PARTICLE_RMB (TEXT("/Game/Paragon/ParagonSparrow/FX/Particles/Sparrow/Abilities/DrawABead/FX/P_Sparrow_RMB.P_Sparrow_RMB"));
+	static ConstructorHelpers::FObjectFinder<UParticleSystem> ARROW_PARTICLE_RMB(TEXT("/Game/Paragon/ParagonSparrow/FX/Particles/Sparrow/Abilities/DrawABead/FX/P_Sparrow_RMB.P_Sparrow_RMB"));
 	if (ARROW_PARTICLE_RMB.Succeeded()) ArrowParticle_RMB = ARROW_PARTICLE_RMB.Object;
 }
 
@@ -251,39 +251,20 @@ void ASparrowCharacter::Look(const FInputActionValue& InValue)
 */
 void ASparrowCharacter::Ability_Q()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	if (!ValidateAbilityUsage())
 	{
 		return;
 	}
 
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
 
-	if (::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q] AbilityStatComponent, or AnimInstance is null."));
-		return;
-	}
 
 	bool bIsAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_Q);
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bIsAbilityReady)
+	if (bIsAbilityReady)
 	{
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_Q);
+		ServerNotifyAbilityUse(EAbilityID::Ability_Q, ETriggerEvent::Started);
 
-		TArray<float> UniqueValues = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_Q, 0).UniqueValue;
-		if (UniqueValues.IsValidIndex(1))
-		{
-			Ability_Q_Range = UniqueValues[1];
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q] The UniqueValues array does not have enough elements."));
-			return;
-		}
+		const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_Q);
+		Ability_Q_Range = AbilityStatTable.Range;
 
 		if (::IsValid(Ability_Q_Montage))
 		{
@@ -316,86 +297,78 @@ void ASparrowCharacter::Ability_Q()
 
 void ASparrowCharacter::Ability_Q_Fire()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
 		return;
 	}
 
-	if (bCtrlKeyPressed)
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_Q) == false)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] Ability cannot be used because the Ctrl key is pressed."));
 		return;
 	}
 
-	if (::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
+	//AbilityStatComponent->UseAbility(EAbilityID::Ability_Q, GetWorld()->GetTimeSeconds());
+	//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_Q);
+
+	ServerNotifyAbilityUse(EAbilityID::Ability_Q, ETriggerEvent::Triggered);
+
+	// 애니메이션 몽타주의 현재 위치와 섹션 길이를 계산
+	if (::IsValid(Ability_Q_Montage) == false)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] AbilityStatComponent, or AnimInstance is null."));
+		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] Ability_Q_Montage is null."));
 		return;
 	}
 
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_Q))
-	{
-		//AbilityStatComponent->UseAbility(EAbilityID::Ability_Q, GetWorld()->GetTimeSeconds());
-		//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_Q);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_Q);
+	float CurrentPosition = AnimInstance->Montage_GetPosition(Ability_Q_Montage);
+	float MontageLength = Ability_Q_Montage->GetSectionLength(0);
+	float RemainingTime = MontageLength - CurrentPosition;
 
-		// 애니메이션 몽타주의 현재 위치와 섹션 길이를 계산
-		if (::IsValid(Ability_Q_Montage) == false)
+	int32 TimerID = static_cast<uint32>(EAbilityID::Ability_Q);
+	auto TimerCallback = [this, TimerID]()
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] Ability_Q_Montage is null."));
-			return;
-		}
+			// 화살 생성 위치와 회전 계산
+			FVector ArrowAnchorLocation = GetMesh()->GetSocketLocation(TEXT("arrow_anchor"));
+			FVector ArrowLocation = GetMesh()->GetSocketLocation(TEXT("Arrow"));
+			FRotator SpawnRotation = UKismetMathLibrary::MakeRotFromX(ArrowAnchorLocation - ArrowLocation);
+			FTransform SpawnTransform = FTransform(SpawnRotation, ArrowAnchorLocation, FVector(1));
 
-		float CurrentPosition = AnimInstance->Montage_GetPosition(Ability_Q_Montage);
-		float MontageLength = Ability_Q_Montage->GetSectionLength(0);
-		float RemainingTime = MontageLength - CurrentPosition;
+			FArrowProperties ArrowProperties;
+			ArrowProperties.Range = 1000.f;
+			ArrowProperties.Speed = 5000.f;
 
-		GetWorldTimerManager().SetTimer(
-			Ability_Q_Timer,
-			FTimerDelegate::CreateLambda([&]()
-				{
-					// 화살 생성 위치와 회전 계산
-					FVector ArrowAnchorLocation = GetMesh()->GetSocketLocation(TEXT("arrow_anchor"));
-					FVector ArrowLocation = GetMesh()->GetSocketLocation(TEXT("Arrow"));
-					FRotator SpawnRotation = UKismetMathLibrary::MakeRotFromX(ArrowAnchorLocation - ArrowLocation);
-					FTransform SpawnTransform = FTransform(SpawnRotation, ArrowAnchorLocation, FVector(1));
+			if (::IsValid(BasicArrowClass))
+			{
+				SpawnArrow_Server(BasicArrowClass, SpawnTransform, ArrowProperties, FDamageInfomation());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] BasicArrowClassis null."));
+			}
 
-					FArrowProperties ArrowProperties;
-					ArrowProperties.Range = 1000.f;
-					ArrowProperties.Speed = 5000.f;
-					
-					if (::IsValid(BasicArrowClass))
-					{
-						SpawnArrow_Server(BasicArrowClass, SpawnTransform, ArrowProperties, FDamageInfomation());
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] BasicArrowClassis null."));
-					}
-					
-					SpawnRootedParicleAtLocation_Server(Ability_Q_RainOfArrows, FTransform(FRotator(0), TargetDecalActor->GetActorLocation(), FVector(1)));
+			SpawnRootedParticleAtLocation_Server(Ability_Q_RainOfArrows, FTransform(FRotator(0), TargetDecalActor->GetActorLocation(), FVector(1)));
 
-					if (::IsValid(TargetDecalActor))
-					{
-						TargetDecalActor->Destroy();
-					}
+			if (::IsValid(TargetDecalActor))
+			{
+				TargetDecalActor->Destroy();
+			}
 
-					FName NextSectionName = FName("Fire");
-					if (::IsValid(Ability_Q_Montage))
-					{
-						AnimInstance->Montage_JumpToSection(NextSectionName, Ability_Q_Montage);
-						MontageJumpToSection_Server(Ability_Q_Montage, NextSectionName, 1.0f);
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] Ability_Q_Montage is null."));
-					}				
-				}),
-			0.1f,
-			false,
-			RemainingTime
-		);
-	}
+			FName NextSectionName = FName("Fire");
+			if (::IsValid(Ability_Q_Montage))
+			{
+				AnimInstance->Montage_JumpToSection(NextSectionName, Ability_Q_Montage);
+				MontageJumpToSection_Server(Ability_Q_Montage, NextSectionName, 1.0f);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_Q_Fire] Ability_Q_Montage is null."));
+			}
+
+			ClearGameTimer(TimerHandleList, TimerID);
+		};
+
+
+	SetGameTimer(TimerHandleList, TimerID, TimerCallback, 0.1, false, RemainingTime);
 }
 
 /*
@@ -412,76 +385,35 @@ void ASparrowCharacter::Ability_E()
 	Ability_R 함수는 캐릭터의 R 스킬을 실행합니다.
 	1. UniqueValue[0]: Duration				지속시간
 	2. UniqueValue[1]: SideArrowsDamage		사이드 화살 데미지 퍼센트
-	3. UniqueValue[2]: Angle				사이드 화살 각도
-	4. UniqueValue[3]: Speed				화살 속도
-	5. UniqueValue[4]: Range				화살 사거리
+	3. UniqueValue[2]: SideArrowsAngle		사이드 화살 각도
+	4. UniqueValue[3]: ArrowSpeed			화살 속도
 */
 
 void ASparrowCharacter::Ability_R()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
-		return;
-	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_R] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_R] AbilityStatComponent, or AnimInstance is null."));
 		return;
 	}
 
 	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_R);
-
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bAbilityReady)
+	if (bAbilityReady)
 	{
 		// Ability를 사용하고 쿨다운을 시작하는 코드는 주석 처리되어 있음
 		// AbilityStatComponent->UseAbility(EAbilityID::Ability_R, GetWorld()->GetTimeSeconds());
 		// AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_R);
 
-		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_R);
+		ServerNotifyAbilityUse(EAbilityID::Ability_R, ETriggerEvent::None);
 
-		TArray<float> UniqueValues = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R, 1).UniqueValue;
-		for (int32 i = 0; i < UniqueValues.Num(); i++)
-		{
-			if (UniqueValues.IsValidIndex(i) == false)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_R] There is an invalid value in the UniqueValues array at index: %d"), i);
-				return;
-			}
-		}
+		const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R);
+		TMap<FString, float> UniqueAttributes = AbilityStatTable.GetUniqueAttributesMap();
 
-		Ability_R_Duration		= UniqueValues[0];
-		Ability_R_SideDamage	= UniqueValues[1];
-		Ability_R_Angle			= UniqueValues[2];
-		Ability_R_ArrowSpeed	= UniqueValues[3];
-		Ability_R_Range			= UniqueValues[4];
-
-		BowParticleSystem->Activate();
-
-		GetWorldTimerManager().SetTimer(
-			Ability_R_Timer,
-			FTimerDelegate::CreateLambda([this]()
-				{
-					EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_R);
-
-					if (::IsValid(BowParticleSystem))
-					{
-						BowParticleSystem->Deactivate();
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_R] BowParticleSystem is null."));
-					}
-				}),
-			Ability_R_Duration,
-			false
-		);
+		Ability_R_Duration = UniqueAttributes.Contains("Duration") ? UniqueAttributes["Duration"] : 0.f;
+		Ability_R_SideDamage = UniqueAttributes.Contains("SideArrowsDamage") ? UniqueAttributes["SideArrowsDamage"] : 0.f;
+		Ability_R_Angle = UniqueAttributes.Contains("SideArrowsAngle") ? UniqueAttributes["SideArrowsAngle"] : 0.f;
+		Ability_R_ArrowSpeed = UniqueAttributes.Contains("ArrowSpeed") ? UniqueAttributes["ArrowSpeed"] : 0.f;
+		Ability_R_Range = AbilityStatTable.Range;
 	}
 	else
 	{
@@ -503,149 +435,147 @@ void ASparrowCharacter::Ability_R()
  */
 void ASparrowCharacter::Ability_LMB()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
-		return;
-	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_LMB] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (!::IsValid(StatComponent) || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_LMB] StatComponent, AbilityStatComponent, or AnimInstance is null."));
 		return;
 	}
 
 	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_LMB);
-
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bAbilityReady)
+	if (!bAbilityReady)
 	{
-		AbilityStatComponent->UseAbility(EAbilityID::Ability_LMB, GetWorld()->GetTimeSeconds());
-		AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_LMB);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
+		return;
+	}
 
-		Ability_LMB_AnimLength	= 1.f;
-		Ability_LMB_PlayRate	= SetAnimPlayRate(Ability_LMB_AnimLength);
+	AbilityStatComponent->UseAbility(EAbilityID::Ability_LMB, GetWorld()->GetTimeSeconds());
+	AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_LMB);
+	ServerNotifyAbilityUse(EAbilityID::Ability_LMB, ETriggerEvent::None);
 
-		Ability_LMB_ImpactPoint = GetImpactPoint();
+	Ability_LMB_AnimLength = 1.f;
+	Ability_LMB_PlayRate = SetAnimPlayRate(Ability_LMB_AnimLength);
+	Ability_LMB_ImpactPoint = GetImpactPoint();
 
-		FVector	ArrowSpawnLocation	= GetMesh()->GetSocketLocation(FName("Arrow"));
-		FRotator ArrowSpawnRotation = UKismetMathLibrary::MakeRotFromX(Ability_LMB_ImpactPoint - ArrowSpawnLocation);
+	FVector ArrowSpawnLocation = GetMesh()->GetSocketLocation(FName("Arrow"));
+	FRotator ArrowSpawnRotation = UKismetMathLibrary::MakeRotFromX(Ability_LMB_ImpactPoint - ArrowSpawnLocation);
 
-		if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_R))
-		{
-			const FAbilityStatTable AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R, 0);
-
-			const float Character_AttackDamage = StatComponent->GetAttackDamage();
-			const float Character_AbilityPower = StatComponent->GetAbilityPower();
-
-			const float BaseAttackDamage = AbilityStatTable.Ability_AttackDamage;
-			const float BaseAbilityPower = AbilityStatTable.Ability_AbilityPower;
-			const float Ability_AD_Ratio = AbilityStatTable.Ability_AD_Ratio;
-			const float Ability_AP_Ratio = AbilityStatTable.Ability_AP_Ratio;
-
-			const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * Ability_AD_Ratio) + (BaseAbilityPower + Character_AbilityPower * Ability_AP_Ratio);
-
-			FArrowProperties ArrowProperties;
-			ArrowProperties.PierceCount = 0;
-			ArrowProperties.Speed = Ability_R_ArrowSpeed;
-			ArrowProperties.Range = Ability_R_Range;
-
-			FDamageInfomation DamageInfomation;
-			DamageInfomation.AbilityID = EAbilityID::Ability_R;
-			DamageInfomation.AddDamage(EDamageType::Physical, FinalDamage);
-			EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::AbilityEffects);
-
-			AnimInstance->PlayMontage(Ability_LMB_Montage, Ability_LMB_PlayRate);
-			PlayMontage_Server(Ability_LMB_Montage, Ability_LMB_PlayRate);
-
-			if (UltimateArrowClass)
-			{
-				// 중앙 화살
-				SpawnArrow_Server(UltimateArrowClass, FTransform(ArrowSpawnRotation, ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
-
-				DamageInfomation.PhysicalDamage = DamageInfomation.PhysicalDamage * Ability_R_SideDamage;
-
-				// 사이드 화살
-				SpawnArrow_Server(UltimateArrowClass, FTransform(ArrowSpawnRotation + FRotator(0.f, -Ability_R_Angle, 0.f), ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
-				SpawnArrow_Server(UltimateArrowClass, FTransform(ArrowSpawnRotation + FRotator(0.f, Ability_R_Angle, 0.f), ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_LMB] Cannot spawn arrow because UltimateArrowClass is null."));
-			}
-
-		}
-		else
-		{
-			const FAbilityStatTable AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_LMB, 0);
-			const TArray<float> UniqueValue = AbilityStatTable.UniqueValue;
-
-			const float Character_AttackDamage = StatComponent->GetAttackDamage();
-			const float Character_AbilityPower = StatComponent->GetAbilityPower();
-
-			const float BaseAttackDamage = AbilityStatTable.Ability_AttackDamage;
-			const float BaseAbilityPower = AbilityStatTable.Ability_AbilityPower;
-			const float Ability_AD_Ratio = AbilityStatTable.Ability_AD_Ratio;
-			const float Ability_AP_Ratio = AbilityStatTable.Ability_AP_Ratio;
-
-			const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * Ability_AD_Ratio) + (BaseAbilityPower + Character_AbilityPower * Ability_AP_Ratio);
-
-			if (UniqueValue.IsValidIndex(1) && UniqueValue.IsValidIndex(2))
-			{
-				Ability_LMB_ArrowSpeed	= UniqueValue[0];
-				Ability_LMB_Range		= UniqueValue[1];
-			}
-
-			FArrowProperties ArrowProperties;
-			ArrowProperties.PierceCount = 0;
-			ArrowProperties.Speed = Ability_LMB_ArrowSpeed;
-			ArrowProperties.Range = Ability_LMB_Range;
-
-			FDamageInfomation DamageInfomation;
-			DamageInfomation.AbilityID = EAbilityID::Ability_LMB;
-			DamageInfomation.AddDamage(EDamageType::Physical, FinalDamage);
-			EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::OnHit);
-			EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::OnAttack);
-
-			const float AttackSpeed = StatComponent->GetAttackSpeed();
-			if (AttackSpeed < 1.f)
-			{
-				AnimInstance->PlayMontage(Ability_LMB_SlowMontage, Ability_LMB_PlayRate);
-				PlayMontage_Server(Ability_LMB_SlowMontage, Ability_LMB_PlayRate);
-			}
-			else if (AttackSpeed > 1.f && AttackSpeed < 2.0f)
-			{
-				AnimInstance->PlayMontage(Ability_LMB_Montage, Ability_LMB_PlayRate);
-				PlayMontage_Server(Ability_LMB_Montage, Ability_LMB_PlayRate);
-			}
-			else
-			{
-				Ability_LMB_AnimLength = 0.6f;
-				Ability_LMB_PlayRate = SetAnimPlayRate(Ability_LMB_AnimLength);
-				AnimInstance->PlayMontage(Ability_LMB_FastMontage, Ability_LMB_PlayRate);
-				PlayMontage_Server(Ability_LMB_FastMontage, Ability_LMB_PlayRate);
-			}
-
-			if (BasicArrowClass)
-			{
-				SpawnArrow_Server(BasicArrowClass, FTransform(ArrowSpawnRotation, ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_LMB] Cannot spawn arrow because BasicArrowClass is null."));
-			}
-		}
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_R))
+	{
+		ExecuteAbilityR(ArrowSpawnLocation, ArrowSpawnRotation);
 	}
 	else
 	{
-		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
+		ExecuteAbilityLMB(ArrowSpawnLocation, ArrowSpawnRotation);
 	}
 }
+
+void ASparrowCharacter::ExecuteAbilityR(FVector ArrowSpawnLocation, FRotator ArrowSpawnRotation)
+{
+	const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R);
+
+	const float Character_AttackDamage = StatComponent->GetAttackDamage();
+	const float Character_AbilityPower = StatComponent->GetAbilityPower();
+
+	const float BaseAttackDamage = AbilityStatTable.AttackDamage;
+	const float BaseAbilityPower = AbilityStatTable.AbilityDamage;
+	const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
+	const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
+
+	const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
+
+	FArrowProperties ArrowProperties;
+	ArrowProperties.PierceCount = 0;
+	ArrowProperties.Speed = Ability_R_ArrowSpeed;
+	ArrowProperties.Range = Ability_R_Range;
+
+	FDamageInfomation DamageInfomation;
+	DamageInfomation.AbilityID = EAbilityID::Ability_R;
+	DamageInfomation.AddDamage(EDamageType::Physical, FinalDamage);
+	EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::AbilityEffects);
+
+	AnimInstance->PlayMontage(Ability_LMB_Montage, Ability_LMB_PlayRate);
+	PlayMontage_Server(Ability_LMB_Montage, Ability_LMB_PlayRate);
+
+	if (UltimateArrowClass)
+	{
+		// 중앙 화살
+		SpawnArrow_Server(UltimateArrowClass, FTransform(ArrowSpawnRotation, ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
+
+		DamageInfomation.PhysicalDamage = DamageInfomation.PhysicalDamage * Ability_R_SideDamage;
+
+		// 사이드 화살
+		SpawnArrow_Server(UltimateArrowClass, FTransform(ArrowSpawnRotation + FRotator(0.f, -Ability_R_Angle, 0.f), ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
+		SpawnArrow_Server(UltimateArrowClass, FTransform(ArrowSpawnRotation + FRotator(0.f, Ability_R_Angle, 0.f), ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::ExecuteAbilityR] Cannot spawn arrow because UltimateArrowClass is null."));
+	}
+}
+
+void ASparrowCharacter::ExecuteAbilityLMB(FVector ArrowSpawnLocation, FRotator ArrowSpawnRotation)
+{
+	const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_LMB);
+	TMap<FString, float> UniqueAttributes = AbilityStatTable.GetUniqueAttributesMap();
+
+	const float Character_AttackDamage = StatComponent->GetAttackDamage();
+	const float Character_AbilityPower = StatComponent->GetAbilityPower();
+
+	const float BaseAttackDamage = AbilityStatTable.AttackDamage;
+	const float BaseAbilityPower = AbilityStatTable.AbilityDamage;
+	const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
+	const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
+
+	const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
+
+	Ability_LMB_ArrowSpeed = UniqueAttributes.Contains("ArrowSpeed") ? UniqueAttributes["ArrowSpeed"] : 0.f;
+	Ability_LMB_Range = AbilityStatTable.Range;
+
+	FArrowProperties ArrowProperties;
+	ArrowProperties.PierceCount = 0;
+	ArrowProperties.Speed = Ability_LMB_ArrowSpeed;
+	ArrowProperties.Range = Ability_LMB_Range;
+
+	FDamageInfomation DamageInfomation;
+	DamageInfomation.AbilityID = EAbilityID::Ability_LMB;
+	DamageInfomation.AddDamage(EDamageType::Physical, FinalDamage);
+	EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::OnHit);
+	EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::OnAttack);
+
+	const float AttackSpeed = StatComponent->GetAttackSpeed();
+	UAnimMontage* MontageToPlay = GetMontageBasedOnAttackSpeed(AttackSpeed);
+
+	AnimInstance->PlayMontage(MontageToPlay, Ability_LMB_PlayRate);
+	PlayMontage_Server(MontageToPlay, Ability_LMB_PlayRate);
+
+	if (BasicArrowClass)
+	{
+		SpawnArrow_Server(BasicArrowClass, FTransform(ArrowSpawnRotation, ArrowSpawnLocation, FVector(1)), ArrowProperties, DamageInfomation);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::ExecuteAbilityLMB] Cannot spawn arrow because BasicArrowClass is null."));
+	}
+}
+
+UAnimMontage* ASparrowCharacter::GetMontageBasedOnAttackSpeed(float AttackSpeed)
+{
+	if (AttackSpeed < 1.f)
+	{
+		return Ability_LMB_SlowMontage;
+	}
+	else if (AttackSpeed > 1.f && AttackSpeed < 2.0f)
+	{
+		return Ability_LMB_Montage;
+	}
+	else
+	{
+		Ability_LMB_AnimLength = 0.6f;
+		Ability_LMB_PlayRate = SetAnimPlayRate(Ability_LMB_AnimLength);
+		return Ability_LMB_FastMontage;
+	}
+}
+
 
 /*
 	1. UniqueVale[0]: Range		화살 사거리
@@ -653,38 +583,25 @@ void ASparrowCharacter::Ability_LMB()
 */
 void ASparrowCharacter::Ability_RMB()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	bool bCanUseAbility = ValidateAbilityUsage();
+	if (!bCanUseAbility)
 	{
-		return;
-	}
-
-	if (bCtrlKeyPressed)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_RMB] Ability cannot be used because the Ctrl key is pressed."));
-		return;
-	}
-
-	if (::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_RMB] AbilityStatComponent, or AnimInstance is null."));
 		return;
 	}
 
 	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_RMB);
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bAbilityReady)
-	{
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_RMB);
 
-		if (::IsValid(Ability_RMB_Montage))
+	if (bAbilityReady)
+	{
+		ServerNotifyAbilityUse(EAbilityID::Ability_RMB, ETriggerEvent::Started);
+
+		if (::IsValid(Ability_RMB_Montage) == false)
 		{
-			AnimInstance->PlayMontage(Ability_RMB_Montage, 1.0f);
-			PlayMontage_Server(Ability_RMB_Montage, 1.0f);
+			return;
 		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_RMB] Ability_RMB_Montage is null."));
-		}
+
+		AnimInstance->PlayMontage(Ability_RMB_Montage, 1.0f);
+		PlayMontage_Server(Ability_RMB_Montage, 1.0f);
 	}
 	else
 	{
@@ -694,20 +611,21 @@ void ASparrowCharacter::Ability_RMB()
 
 void ASparrowCharacter::Ability_RMB_Canceled()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_RMB))
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_RMB) == false)
 	{
-		EnumAddFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_RMB);
-
-		AnimInstance->StopAllMontages(0.25f);
-		StopAllMontages_Server(0.25f);
+		return;
 	}
+
+	ServerNotifyAbilityUse(EAbilityID::Ability_RMB, ETriggerEvent::Canceled);
+
+	AnimInstance->StopAllMontages(0.25f);
+	StopAllMontages_Server(0.25f);
 }
 
 
 void ASparrowCharacter::Ability_RMB_Fire()
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Dead))
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Death))
 	{
 		return;
 	}
@@ -716,11 +634,12 @@ void ASparrowCharacter::Ability_RMB_Fire()
 	{
 		//AbilityStatComponent->UseAbility(EAbilityID::Ability_RMB, GetWorld()->GetTimeSeconds());
 		//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_RMB);
-		EnumAddFlags(CharacterState, EBaseCharacterState::SwitchAction);
-		EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_RMB);
 
-		const FAbilityStatTable AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_RMB, 0);
-		const TArray<float> UniqueValue = AbilityStatTable.UniqueValue;
+		ServerNotifyAbilityUse(EAbilityID::Ability_RMB, ETriggerEvent::Triggered);
+
+
+		const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_RMB);
+		TMap<FString, float> UniqueAttributes = AbilityStatTable.GetUniqueAttributesMap();
 
 		if (AbilityStatTable.IsValid() == false)
 		{
@@ -736,27 +655,22 @@ void ASparrowCharacter::Ability_RMB_Fire()
 		const float Character_AttackDamage = StatComponent->GetAttackDamage();
 		const float Character_AbilityPower = StatComponent->GetAbilityPower();
 
-		const float BaseAttackDamage = AbilityStatTable.Ability_AttackDamage;
-		const float BaseAbilityPower = AbilityStatTable.Ability_AbilityPower;
-		const float Ability_AD_Ratio = AbilityStatTable.Ability_AD_Ratio;
-		const float Ability_AP_Ratio = AbilityStatTable.Ability_AP_Ratio;
+		const float BaseAttackDamage = AbilityStatTable.AttackDamage;
+		const float BaseAbilityPower = AbilityStatTable.AbilityDamage;
+		const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
+		const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
 
-		const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * Ability_AD_Ratio) + (BaseAbilityPower + Character_AbilityPower * Ability_AP_Ratio);
+		const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
 
-		if (UniqueValue.IsValidIndex(0) == false || UniqueValue.IsValidIndex(1) == false)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_RMB_Fire] The UniqueValues array does not have enough elements."));
-			return;
-		}
 
-		Ability_RMB_ArrowSpeed	= UniqueValue[1];
-		Ability_RMB_Range		= UniqueValue[0];
+		Ability_RMB_ArrowSpeed = UniqueAttributes.Contains("ArrowSpeed") ? UniqueAttributes["ArrowSpeed"] : 0.f;
+		Ability_RMB_Range = AbilityStatTable.Range;
 
 		FArrowProperties ArrowProperties;
-		ArrowProperties.PierceCount				= 3;
-		ArrowProperties.Pierce_DamageReduction	= 0.1f;
-		ArrowProperties.Speed					= Ability_RMB_ArrowSpeed;
-		ArrowProperties.Range					= Ability_RMB_Range;
+		ArrowProperties.PierceCount = 3;
+		ArrowProperties.Pierce_DamageReduction = 0.1f;
+		ArrowProperties.Speed = Ability_RMB_ArrowSpeed;
+		ArrowProperties.Range = Ability_RMB_Range;
 
 		FDamageInfomation DamageInfomation;
 		DamageInfomation.AbilityID = EAbilityID::Ability_RMB;
@@ -774,7 +688,7 @@ void ASparrowCharacter::Ability_RMB_Fire()
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_RMB_Fire] Ability_RMB_Montage is null."));
 		}
-		
+
 		if (::IsValid(PiercingArrowClass))
 		{
 			SpawnArrow_Server(PiercingArrowClass, ArrowSpawnTransform, ArrowProperties, DamageInfomation);
@@ -783,50 +697,13 @@ void ASparrowCharacter::Ability_RMB_Fire()
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::Ability_RMB_Fire] Cannot spawn arrow because PiercingArrowClass is null."));
 		}
-		
+
 	}
 }
 
 void ASparrowCharacter::Ability_Q_CheckHit()
 {
 }
-
-void ASparrowCharacter::OnRep_CharacterStateChanged()
-{
-	Super::OnRep_CharacterStateChanged();
-
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_R))
-	{
-		if (IsValid(BowParticleSystem))
-		{
-			BowParticleSystem->Activate();
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::OnRep_CharacterStateChanged] BowParticleSystem is null."));
-			return;
-		}
-
-		GetWorldTimerManager().SetTimer(
-			Ability_R_Timer,
-			FTimerDelegate::CreateLambda([this]()
-				{
-					EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_R);
-					if (IsValid(BowParticleSystem))
-					{
-						BowParticleSystem->Deactivate();
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[ASparrowCharacter::OnRep_CharacterStateChanged] BowParticleSystem is null."));
-					}
-				}),
-			Ability_R_Duration,
-			false
-		);
-	}
-}
-
 
 void ASparrowCharacter::MontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
@@ -906,3 +783,103 @@ void ASparrowCharacter::SpawnArrow_Server_Implementation(UClass* SpawnArrowClass
 		UGameplayStatics::FinishSpawningActor(NewArrowActor, SpawnTransform);
 	}
 }
+
+bool ASparrowCharacter::ValidateAbilityUsage()
+{
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Death))
+	{
+		return false;
+	}
+
+	if (bCtrlKeyPressed)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_Q] Ability cannot be used because the Ctrl key is pressed."));
+		return false;
+	}
+
+	if (::IsValid(StatComponent) == false || ::IsValid(AbilityStatComponent) == false || ::IsValid(AnimInstance) == false)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[AAuroraCharacter::Ability_Q] StatComponent, AbilityStatComponent, or AnimInstance is null."));
+		return false;
+	}
+
+	return true;
+}
+
+void ASparrowCharacter::ServerNotifyAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
+{
+	Super::ServerNotifyAbilityUse(AbilityID, TriggerEvent);
+
+	int32 TimerID = 0;
+
+	if (AbilityID == EAbilityID::Ability_Q)
+	{
+		if (EnumHasAnyFlags(TriggerEvent, ETriggerEvent::Started))
+		{
+			EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+			EnumAddFlags(CharacterState, EBaseCharacterState::Ability_Q);
+			UE_LOG(LogTemp, Log, TEXT("ServerNotifyAbilityUse: Ability_Q started. Updated CharacterState."));
+		}
+		else if (EnumHasAnyFlags(TriggerEvent, ETriggerEvent::Triggered))
+		{
+			EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_Q);
+			UE_LOG(LogTemp, Log, TEXT("ServerNotifyAbilityUse: Ability_Q triggered. Updated CharacterState."));
+		}
+	}
+	else if (AbilityID == EAbilityID::Ability_E)
+	{
+		
+	}
+	else if (AbilityID == EAbilityID::Ability_R)
+	{
+		CharacterState = CharacterState | EBaseCharacterState::Ability_R;
+		UE_LOG(LogTemp, Log, TEXT("ServerNotifyAbilityUse: Ability_R started. Updated CharacterState."));
+
+		TimerID = static_cast<int32>(EAbilityID::Ability_R);
+		SetGameTimer(AbilityTimer, TimerID,
+			[this, TimerID]()
+			{
+				EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_R);
+				ClearGameTimer(AbilityTimer, TimerID);
+				UE_LOG(LogTemp, Log, TEXT("ServerNotifyAbilityUse: Ability_R timer ended. Updated CharacterState."));
+			},
+			0.1f, false, Ability_R_Duration);
+	}
+	else if (AbilityID == EAbilityID::Ability_RMB)
+	{
+		if (TriggerEvent == ETriggerEvent::Started)
+		{
+			EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+			EnumAddFlags(CharacterState, EBaseCharacterState::Ability_RMB);
+			UE_LOG(LogTemp, Log, TEXT("ServerNotifyAbilityUse: Ability_RMB started. Updated CharacterState."));
+		}
+		else
+		{
+			EnumAddFlags(CharacterState, EBaseCharacterState::SwitchAction);
+			EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_RMB);
+			UE_LOG(LogTemp, Log, TEXT("ServerNotifyAbilityUse: Ability_RMB stopped. Updated CharacterState."));
+		}
+	}
+	else if (AbilityID == EAbilityID::Ability_LMB)
+	{
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+		UE_LOG(LogTemp, Log, TEXT("ServerNotifyAbilityUse: Ability_LMB triggered. Updated CharacterState."));
+	}
+
+	OnRep_CharacterStateChanged();
+}
+
+
+
+void ASparrowCharacter::OnRep_CharacterStateChanged()
+{
+	Super::OnRep_CharacterStateChanged();
+
+	UE_LOG(LogTemp, Log, TEXT("[ASparrowCharacter::OnRep_CharacterStateChanged] OnRep_CharacterStateChanged"));
+
+	if (::IsValid(BowParticleSystem))
+	{
+		EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_R) ? BowParticleSystem->Activate() : BowParticleSystem->Deactivate();
+	}
+}
+

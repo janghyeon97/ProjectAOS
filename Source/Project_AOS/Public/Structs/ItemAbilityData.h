@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 #include "Structs/EnumItemAbility.h"
-#include "StructItemAbility.generated.h"
+#include "ItemAbilityData.generated.h"
 
 USTRUCT(BlueprintType)
 struct FItemAbility
@@ -46,7 +46,7 @@ public:
  * 
  */
 UCLASS()
-class PROJECT_AOS_API UStructItemAbility : public UObject
+class PROJECT_AOS_API UItemAbilityData : public UObject
 {
 	GENERATED_BODY()
 	

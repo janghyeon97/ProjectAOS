@@ -13,6 +13,29 @@
 #include "DamageInfomationStruct.generated.h"
 
 USTRUCT(BlueprintType)
+struct FCrowdControlInformation
+{
+	GENERATED_BODY()
+
+public:
+	FCrowdControlInformation() : Type(EBaseCrowdControl::None), Duration(0), Percent(0) {}
+	FCrowdControlInformation(EBaseCrowdControl InCrowdControl, float InDuration) : Type(InCrowdControl), Duration(InDuration), Percent(0) {}
+	FCrowdControlInformation(EBaseCrowdControl InCrowdControl, float InDuration, float InPercent) : Type(InCrowdControl), Duration(InDuration), Percent(InPercent) {}
+
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EBaseCrowdControl Type;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Duration;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", ClampMax = "1.0", uIMin = "0.0", uIMax = "1.0"))
+	float Percent;
+};
+
+
+USTRUCT(BlueprintType)
 struct FDamageInfomation
 {
 	GENERATED_BODY()
@@ -73,7 +96,7 @@ public:
 	EAttackEffect AttackEffect;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<ECrowdControlBase> AbilityEffects;
+	TArray<FCrowdControlInformation> CrowdControls;
 };
 
 /**

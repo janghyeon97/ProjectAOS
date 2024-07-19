@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "Structs/StructItemAbility.h"
+#include "Structs/ItemAbilityData.h"
 #include "Structs/EnumClassification.h"
 #include "Structs/EnumItemAbility.h"
 #include "ItemData.generated.h"

@@ -82,23 +82,23 @@ void UAbilityStatComponent::InitAbilityStatComponent(UStatComponent* InStatCompo
 
 	if (GameInstance->GetCharacterAbilityStatDataTable(ChampionIndex))
 	{
-		InitializeAbilityInfomation(EAbilityID::Ability_Q, Ability_Q_Info, ChampionIndex);
-		InitializeAbilityInfomation(EAbilityID::Ability_E, Ability_E_Info, ChampionIndex);
-		InitializeAbilityInfomation(EAbilityID::Ability_R, Ability_R_Info, ChampionIndex);
-		InitializeAbilityInfomation(EAbilityID::Ability_LMB, Ability_LMB_Info, ChampionIndex);
-		InitializeAbilityInfomation(EAbilityID::Ability_RMB, Ability_RMB_Info, ChampionIndex);
+		InitializeAbilityInformation(EAbilityID::Ability_Q, Ability_Q_Info, ChampionIndex);
+		InitializeAbilityInformation(EAbilityID::Ability_E, Ability_E_Info, ChampionIndex);
+		InitializeAbilityInformation(EAbilityID::Ability_R, Ability_R_Info, ChampionIndex);
+		InitializeAbilityInformation(EAbilityID::Ability_LMB, Ability_LMB_Info, ChampionIndex);
+		InitializeAbilityInformation(EAbilityID::Ability_RMB, Ability_RMB_Info, ChampionIndex);
 	}
 }
 
-void UAbilityStatComponent::InitializeAbilityInfomation(EAbilityID AbilityID, FAbilityAttributes& AbilityInfo, int32 InChampionIndex)
+void UAbilityStatComponent::InitializeAbilityInformation(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, int32 InChampionIndex)
 {
 	auto AbilityStruct = GameInstance->GetCharacterAbilityStruct(InChampionIndex, AbilityID, 1);
 	if (AbilityStruct != nullptr)
 	{
-		AbilityInfo.Name = AbilityStruct->AbilityInfomation.Name;
-		AbilityInfo.Description = AbilityStruct->AbilityInfomation.Description;
-		AbilityInfo.MaxLevel = AbilityStruct->AbilityInfomation.MaxLevel;
-		AbilityInfo.MaxInstances = AbilityStruct->AbilityInfomation.MaxInstances;
+		AbilityInfo.Name = AbilityStruct->AbilityInformation.Name;
+		AbilityInfo.Description = AbilityStruct->AbilityInformation.Description;
+		AbilityInfo.MaxLevel = AbilityStruct->AbilityInformation.MaxLevel;
+		AbilityInfo.MaxInstances = AbilityStruct->AbilityInformation.MaxInstances;
 
 		UE_LOG(LogTemp, Warning, TEXT("UAbilityStatComponent::InitializeAbility - %s Max Level [%d], Max Instances [%d]"), *AbilityInfo.Name, AbilityInfo.MaxLevel, AbilityInfo.MaxInstances);
 	}
@@ -134,7 +134,7 @@ void UAbilityStatComponent::InitializeAbility(EAbilityID AbilityID, const int32 
 	}
 }
 
-void UAbilityStatComponent::InitializeAbility(EAbilityID AbilityID, FAbilityAttributes& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, const int32 InLevel)
+void UAbilityStatComponent::InitializeAbility(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, const int32 InLevel)
 {
 	int32 Level = FMath::Clamp(InLevel, 1, AbilityInfo.MaxLevel);
 
@@ -156,20 +156,20 @@ void UAbilityStatComponent::InitializeAbility(EAbilityID AbilityID, FAbilityAttr
 			FAbilityStatTable NewStatTable;
 			NewStatTable.Name = CharacterAbilityStat->Name;
 			NewStatTable.CurrentLevel = CharacterAbilityStat->CurrentLevel;
-			NewStatTable.Ability_AttackDamage = CharacterAbilityStat->Ability_AttackDamage;
-			NewStatTable.Ability_AbilityPower = CharacterAbilityStat->Ability_AbilityPower;
-			NewStatTable.Ability_AD_Ratio = CharacterAbilityStat->Ability_AD_Ratio;
-			NewStatTable.Ability_AP_Ratio = CharacterAbilityStat->Ability_AP_Ratio;
+			NewStatTable.AttackDamage = CharacterAbilityStat->AttackDamage;
+			NewStatTable.AbilityDamage = CharacterAbilityStat->AbilityDamage;
+			NewStatTable.AD_PowerScaling = CharacterAbilityStat->AD_PowerScaling;
+			NewStatTable.AP_PowerScaling = CharacterAbilityStat->AP_PowerScaling;
 			NewStatTable.Cooldown = CharacterAbilityStat->Cooldown;
 			NewStatTable.Cost = CharacterAbilityStat->Cost;
+			NewStatTable.Radius = CharacterAbilityStat->Radius;
+			NewStatTable.Range = CharacterAbilityStat->Range;
 			NewStatTable.ReuseDuration = CharacterAbilityStat->ReuseDuration;
 
-			for (const auto& Pair : CharacterAbilityStat->UniqueAttributes)
+			for (const FAbilityAttribute& Attribute : CharacterAbilityStat->UniqueAttributes)
 			{
-				NewStatTable.UniqueValueName.AddUnique(Pair.Key);
-				NewStatTable.UniqueValue.AddUnique(Pair.Value);
-
-				UE_LOG(LogTemp, Log, TEXT("Key: %s, Value: %f"), *Pair.Key, Pair.Value);
+				NewStatTable.AddUniqueAttribute(Attribute.Key, Attribute.Value);
+				UE_LOG(LogTemp, Log, TEXT("Key: %s, Value: %f"), *Attribute.Key, Attribute.Value);
 			}
 
 			AbilityStat.Emplace(NewStatTable);
@@ -213,7 +213,7 @@ void UAbilityStatComponent::UseAbility_Implementation(EAbilityID AbilityID, floa
 	}
 }
 
-void UAbilityStatComponent::UseSpecificAbility(FAbilityAttributes& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, float& Cooldown, float& LastUseTime, float CurrentTime, EAbilityID AbilityID)
+void UAbilityStatComponent::UseSpecificAbility(FAbilityDetails& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, float& Cooldown, float& LastUseTime, float CurrentTime, EAbilityID AbilityID)
 {
 	if (AbilityInfo.InstanceIndex < AbilityInfo.MaxInstances &&
 		(Cooldown <= 0.0f || (AbilityStat[AbilityInfo.InstanceIndex - 1].ReuseDuration > 0.0f && CurrentTime - LastUseTime <= AbilityStat[AbilityInfo.InstanceIndex - 1].ReuseDuration)))
@@ -328,7 +328,7 @@ void UAbilityStatComponent::StartAbilityCooldown_Implementation(EAbilityID Abili
 		Index = FMath::Clamp(Ability_E_Info.InstanceIndex - 1, 0, Ability_E_Info.MaxInstances - 1);
 		if (Ability_E_Stat.IsValidIndex(Index))
 		{
-			Ability_E_MaxCooldown = Ability_E_Stat[Index - 1].Cooldown * (100 / 100 + AbilityHaste);
+			Ability_E_MaxCooldown = Ability_E_Stat[Index].Cooldown * (100 / 100 + AbilityHaste);
 			Ability_E_Cooldown = Ability_E_MaxCooldown;
 		}
 
@@ -425,9 +425,9 @@ void UAbilityStatComponent::StartAbilityCooldown_Implementation(EAbilityID Abili
 	}
 }
 
-FAbilityAttributes& UAbilityStatComponent::GetAbilityInfomation(EAbilityID AbilityID)
+FAbilityDetails& UAbilityStatComponent::GetAbilityInfomation(EAbilityID AbilityID)
 {
-	FAbilityAttributes EmptyStruct = FAbilityAttributes();
+	FAbilityDetails EmptyStruct = FAbilityDetails();
 
 	if (AbilityID == EAbilityID::None)
 	{
@@ -457,7 +457,7 @@ FAbilityAttributes& UAbilityStatComponent::GetAbilityInfomation(EAbilityID Abili
 	return EmptyStruct;
 }
 
-TArray<FAbilityStatTable>& UAbilityStatComponent::GetAbilityStatTable(EAbilityID AbilityID)
+TArray<FAbilityStatTable>& UAbilityStatComponent::GetAbilityStatTables(EAbilityID AbilityID)
 {
 	TArray<FAbilityStatTable> EmptyArray = TArray<FAbilityStatTable>();
 
@@ -489,7 +489,7 @@ TArray<FAbilityStatTable>& UAbilityStatComponent::GetAbilityStatTable(EAbilityID
 	return EmptyArray;
 }
 
-FAbilityStatTable& UAbilityStatComponent::GetAbilityStatTable(EAbilityID AbilityID, int32 InstanceIndex)
+const FAbilityStatTable& UAbilityStatComponent::GetAbilityStatTable(EAbilityID AbilityID) const
 {
 	FAbilityStatTable EmptyTable;
 	int32 ArrayIndex = 0;
@@ -497,34 +497,59 @@ FAbilityStatTable& UAbilityStatComponent::GetAbilityStatTable(EAbilityID Ability
 	switch (AbilityID)
 	{
 	case EAbilityID::None:
-		UE_LOG(LogTemp, Error, TEXT("[UAbilityStatComponent::IsAbilityReady] Ability ID 는 None이 될 수 없습니다."));
+		UE_LOG(LogTemp, Error, TEXT("[UAbilityStatComponent::GetAbilityStatTable] Ability ID 는 None이 될 수 없습니다."));
 		return EmptyTable;
 
 	case EAbilityID::Ability_Q:
-		ArrayIndex = FMath::Clamp<int32>(InstanceIndex, 0, Ability_Q_Info.MaxInstances - 1);
-		return Ability_Q_Stat[ArrayIndex];
+		ArrayIndex = FMath::Clamp<int32>(Ability_Q_Info.InstanceIndex, 0, Ability_Q_Info.MaxInstances - 1);
+		if (Ability_Q_Stat.IsValidIndex(ArrayIndex))
+		{
+			return Ability_Q_Stat[ArrayIndex];
+		}
+		break;
 
 	case EAbilityID::Ability_E:
-		ArrayIndex = FMath::Clamp<int32>(InstanceIndex, 0, Ability_E_Info.MaxInstances - 1);
-		return Ability_E_Stat[ArrayIndex];
+		ArrayIndex = FMath::Clamp<int32>(Ability_E_Info.InstanceIndex, 0, Ability_E_Info.MaxInstances - 1);
+		if (Ability_E_Stat.IsValidIndex(ArrayIndex))
+		{
+			return Ability_E_Stat[ArrayIndex];
+		}
+		break;
 
 	case EAbilityID::Ability_R:
-		ArrayIndex = FMath::Clamp<int32>(InstanceIndex, 0, Ability_R_Info.MaxInstances - 1);
-		return Ability_R_Stat[ArrayIndex];
+		ArrayIndex = FMath::Clamp<int32>(Ability_R_Info.InstanceIndex, 0, Ability_R_Info.MaxInstances - 1);
+		if (Ability_R_Stat.IsValidIndex(ArrayIndex))
+		{
+			return Ability_R_Stat[ArrayIndex];
+		}
+		break;
 
 	case EAbilityID::Ability_LMB:
-		ArrayIndex = FMath::Clamp<int32>(InstanceIndex, 0, Ability_LMB_Info.MaxInstances - 1);
-		return Ability_LMB_Stat[ArrayIndex];
+		ArrayIndex = FMath::Clamp<int32>(Ability_LMB_Info.InstanceIndex, 0, Ability_LMB_Info.MaxInstances - 1);
+		if (Ability_LMB_Stat.IsValidIndex(ArrayIndex))
+		{
+			return Ability_LMB_Stat[ArrayIndex];
+		}
+		break;
 
 	case EAbilityID::Ability_RMB:
-		ArrayIndex = FMath::Clamp<int32>(InstanceIndex, 0, Ability_RMB_Info.MaxInstances - 1);
-		return Ability_RMB_Stat[ArrayIndex];
+		ArrayIndex = FMath::Clamp<int32>(Ability_RMB_Info.InstanceIndex, 0, Ability_RMB_Info.MaxInstances - 1);
+		if (Ability_RMB_Stat.IsValidIndex(ArrayIndex))
+		{
+			return Ability_RMB_Stat[ArrayIndex];
+		}
+		break;
+
+	default:
+		UE_LOG(LogTemp, Error, TEXT("[UAbilityStatComponent::GetAbilityStatTable] 알 수 없는 Ability ID 입니다."));
+		break;
 	}
 
+	UE_LOG(LogTemp, Warning, TEXT("[UAbilityStatComponent::GetAbilityStatTable] 유효한 AbilityStatTable 을 찾을 수 없습니다. 기본 값을 반환합니다."));
 	return EmptyTable;
 }
 
-void UAbilityStatComponent::UpdateAbilityUpgradeStatus(EAbilityID AbilityID, FAbilityAttributes& AbilityInfo, int32 InNewCurrentLevel)
+void UAbilityStatComponent::UpdateAbilityUpgradeStatus(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, int32 InNewCurrentLevel)
 {
 	if (AbilityInfo.CurrentLevel < AbilityInfo.MaxLevel)
 	{

@@ -113,21 +113,22 @@ void ULobbyUI::UpdateLobby()
 			ALobbyPlayerState* LobbyPlayerState = Cast<ALobbyPlayerState>(Player);
 			if (::IsValid(LobbyPlayerState))
 			{
+				int32 Index = (LobbyPlayerState->TeamSide == ETeamSideBase::Blue) ? LobbyPlayerState->PlayerIndex : LobbyPlayerState->PlayerIndex - 5;
 				UUW_LobbyPlayerInfomation* Widget = nullptr;
 				TArray<UWidgetSwitcher*>& TeamSwitcher = (LobbyPlayerState->TeamSide == ETeamSideBase::Blue) ? BlueTeamSwitcher : RedTeamSwitcher;
 
-				if (TeamSwitcher.IsValidIndex(LobbyPlayerState->PlayerIndex) && TeamSwitcher[LobbyPlayerState->PlayerIndex]->GetChildrenCount() > 1)
+				if (TeamSwitcher.IsValidIndex(Index) && TeamSwitcher[Index]->GetChildrenCount() > 1)
 				{
-					Widget = Cast<UUW_LobbyPlayerInfomation>(TeamSwitcher[LobbyPlayerState->PlayerIndex]->GetChildAt(1));
+					Widget = Cast<UUW_LobbyPlayerInfomation>(TeamSwitcher[Index]->GetChildAt(1));
 					if (::IsValid(Widget))
 					{
 						Widget->UpdatePlayerNameText(Player->GetPlayerName());
-						TeamSwitcher[LobbyPlayerState->PlayerIndex]->SetActiveWidgetIndex(1);
+						TeamSwitcher[Index]->SetActiveWidgetIndex(1);
 					}
 					else
 					{
 						UE_LOG(LogTemp, Error, TEXT("[ULobbyUI::UpdateLobby] Invalid widget at index %d for team %s."),
-							LobbyPlayerState->PlayerIndex,
+							Index,
 							(LobbyPlayerState->TeamSide == ETeamSideBase::Blue) ? TEXT("Blue") : TEXT("Red"));
 					}
 				}

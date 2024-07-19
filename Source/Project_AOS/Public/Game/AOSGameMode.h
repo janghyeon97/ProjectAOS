@@ -5,10 +5,14 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "Structs/EnumTeamSide.h"
+#include "Structs/EnumCharacterType.h"
+#include "Structs/MinionData.h"
+#include "Structs/GameData.h"
 #include "Item/ItemData.h"
 #include "AOSGameMode.generated.h"
 
 class AAOSPlayerController;
+class ACharacterBase;
 class AAOSCharacterBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAllPlayersLoadedDelegate);
@@ -37,13 +41,20 @@ public:
 	void ActivateSpawnMinion();
 	void RequestRespawn(AAOSPlayerController* PlayerController);
 
+	void OnCharacterDeath(AActor* InEliminator, TArray<ACharacterBase*> InNearbyPlayers, EObjectType InObjectType);
+	void AddCurrencyToPlayer(ACharacterBase* Character, int32 Amount);
+	void AddExpToPlayer(ACharacterBase* Character, int32 Amount);
+
 private:
-	void StartGame();
-	void SpawnMinion();
-	void SpawnCharacter(AAOSPlayerController* PlayerController, int32 CharacterIndex, ETeamSideBase Team);
-	void RespawnCharacter(AAOSPlayerController* PlayerController);
+	void LoadGameData();
 	void LoadItemData();
 	void LoadPlayerData();
+	void LoadMinionData();
+
+	void StartGame();
+	void SpawnMinion(EMinionType MinionType);
+	void SpawnCharacter(AAOSPlayerController* PlayerController, int32 CharacterIndex, ETeamSideBase Team);
+	void RespawnCharacter(AAOSPlayerController* PlayerController);
 	void CheckAllPlayersLoaded();
 	void FindPlayerStart();
 	void SendLoadedItemsToClients();
@@ -89,8 +100,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
 	TArray<TObjectPtr<AAOSPlayerController>> ExitingPlayers;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Items")
+	UPROPERTY(BlueprintReadOnly, Category = "GameData")
 	TMap<int32, class AItem*> LoadedItems;
+
+	UPROPERTY(BlueprintReadOnly, Category = "GameData")
+	TMap<EMinionType, FMinionDataTableRow> LoadedMinions;
+
+	UPROPERTY(BlueprintReadOnly, Category = "GameData")
+	FGameDataTableRow LoadedGameData;
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
@@ -114,10 +131,12 @@ private:
 	FTimerHandle SpawnMinionTimerHandle;
 	FTimerHandle LoadTimerHandle;
 
-	int32 IncrementAmount = 1;
+	int32 IncrementCurrencyAmount = 1;
 	int32 NumberOfBlueTeam = 0;
 	int32 NumberOfRedTeam = 0;
 
-	const float MinionSpawnTime = 5.f;
+	const float MinionSpawnTime = 100000.f;
 	const float MinionSpawnInterval = 15.f;
+
+
 };

@@ -53,6 +53,8 @@ protected:
 public:
 	virtual void InitializeArrowActor(FArrowProperties InArrowProperties, FDamageInfomation InDamageInfomation);
 
+	virtual void AttachToNearestEnemyMesh(const FVector& ImpactPoint);
+
 protected:
 	virtual void ApplyDamage(AActor* OtherActor, float DamageReduction);
 

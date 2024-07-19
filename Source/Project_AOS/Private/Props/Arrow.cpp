@@ -99,18 +99,23 @@ void AArrow::OnBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* Ot
 			switch (CollisionChannel)
 			{
 			case ECC_GameTraceChannel1: // AOSChampion
+			case ECC_GameTraceChannel6: // Minion
 				ACharacterBase* Character = Cast<ACharacterBase>(OtherActor);
-				if (::IsValid(Character))
+				if (::IsValid(Character) == false)
 				{
-					if (OwnerCharacter->TeamSide != Character->TeamSide)
-					{
-						ApplyDamage(Character, 0.0f);
-					}
-					else
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[AArrow::OnBeginOverlap] %s, Overlap Actor %s is same team."), *GetName(), *OtherActor->GetName());
-					}
+					return;
 				}
+
+				if (OwnerCharacter->TeamSide != Character->TeamSide)
+				{
+					AttachToNearestEnemyMesh(SweepResult.ImpactPoint);
+					ApplyDamage(Character, 0.0f);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[AArrow::OnBeginOverlap] %s, Overlap Actor %s is same team."), *GetName(), *OtherActor->GetName());
+				}
+
 				break;
 			}
 		}

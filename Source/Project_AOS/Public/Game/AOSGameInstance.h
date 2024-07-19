@@ -6,7 +6,8 @@
 #include "Engine/GameInstance.h"
 #include "Engine/DataTable.h"
 #include "Structs/EnumAbilityID.h"
-#include "Structs/AbilityStruct.h"
+#include "Structs/GameData.h"
+#include "Structs/AbilityData.h"
 #include "Structs/MinionData.h"
 #include "AOSGameInstance.generated.h"
 
@@ -96,6 +97,25 @@ public:
 };
 
 USTRUCT(BlueprintType)
+struct FAbility
+{
+	GENERATED_BODY()
+
+public:
+	FAbility()
+	{
+
+	};
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FAbilityInformation AbilityInformation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FAbilityStatTable> AbilityStatInformation;
+};
+
+USTRUCT(BlueprintType)
 struct FAbilityStatTableRow : public FTableRowBase
 {
 	GENERATED_BODY()
@@ -167,7 +187,7 @@ public:
 
 	const UDataTable* GetCharacterAbilityStatDataTable(uint32 CharacterIndex);
 	FAbility* GetCharacterAbilityStruct(uint32 CharacterIndex, EAbilityID AbilityID, uint32 InLevel);
-	FAbilityStat* GetCharacterAbilityStat(uint32 CharacterIndex, EAbilityID AbilityID, uint32 InLevel, uint8 InstanceIndex);
+	FAbilityStatTable* GetCharacterAbilityStat(uint32 CharacterIndex, EAbilityID AbilityID, uint32 InLevel, uint8 InstanceIndex);
 
 	const UDataTable* GetCharacterSkinDataTable();
 	FCharacterSkinTableRow* GetCharacterSkinDataTableRow(uint32 InLevel);
@@ -175,6 +195,8 @@ public:
 	const UDataTable* GetMinionDataTable();
 	FMinionDataTableRow* GetMinionDataTableRow(EMinionType MinionType);
 	FStatTableRow* GetMinionStat(EMinionType MinionType);
+
+	const UDataTable* GetGameDataTable();
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
@@ -193,6 +215,9 @@ private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
 	class UDataTable* CharacterSkinTable;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
 	class UDataTable* MinionDataTable;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
+	class UDataTable* GameDataTable;
 };

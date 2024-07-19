@@ -80,8 +80,6 @@ void AAOSPlayerController::InitializeHUD_Implementation(const int CharacterIndex
 				}
 			}
 			HUDWidget->AddToViewport();
-
-			if (::IsValid(LoadingScreenInstance)) RemoveLoadingScreen();
 		}
 	}
 }
@@ -225,6 +223,8 @@ void AAOSPlayerController::OnHUDBindingComplete_Implementation()
 	{
 		OnInitializationCompleted.Broadcast();
 	}
+
+	RemoveLoadingScreen();
 
 	UE_LOG(LogTemp, Warning, TEXT("[AAOSPlayerController::OnHUDBindingComplete] InitialCharacterLevel set to %d"), InitialCharacterLevel);
 }

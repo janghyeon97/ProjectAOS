@@ -119,6 +119,59 @@ void AArrowBase::BeginPlay()
 	ProjectileMovement->Activate();
 }
 
+void AArrowBase::AttachToNearestEnemyMesh(const FVector& ImpactPoint)
+{
+	TArray<FHitResult> OutHits;
+	FCollisionQueryParams QueryParams;
+	QueryParams.bTraceComplex = false;
+	QueryParams.AddIgnoredActor(this);
+	QueryParams.AddIgnoredActor(Owner);
+
+	// Perform a sphere overlap to find nearby actors
+	bool bHit = GetWorld()->SweepMultiByChannel(
+		OutHits,
+		ImpactPoint,
+		ImpactPoint,
+		FQuat::Identity,
+		ECC_Pawn,
+		FCollisionShape::MakeSphere(200.f),
+		QueryParams
+	);
+
+	if (bHit)
+	{
+		ACharacterBase* NearestCharacter = nullptr;
+		float NearestDistance = FLT_MAX;
+
+		// Find the nearest enemy character
+		for (const FHitResult& Hit : OutHits)
+		{
+			ACharacterBase* OverlapCharacter = Cast<ACharacterBase>(Hit.GetActor());
+			if (IsValid(OverlapCharacter) && OverlapCharacter->TeamSide != OwnerCharacter->TeamSide)
+			{
+				float Distance = FVector::Dist(ImpactPoint, OverlapCharacter->GetActorLocation());
+				if (Distance < NearestDistance)
+				{
+					NearestDistance = Distance;
+					NearestCharacter = OverlapCharacter;
+				}
+			}
+		}
+
+		if (NearestCharacter)
+		{
+			// Attach to the nearest character's mesh
+			USkeletalMeshComponent* MeshComponent = NearestCharacter->FindComponentByClass<USkeletalMeshComponent>();
+			if (MeshComponent)
+			{
+				FAttachmentTransformRules AttachmentRules(EAttachmentRule::KeepWorld, true);
+				AttachToComponent(MeshComponent, AttachmentRules);
+				UE_LOG(LogTemp, Warning, TEXT("[Server] %s Attached to %s's Mesh"), *GetName(), *NearestCharacter->GetName());
+			}
+		}
+	}
+}
+
 void AArrowBase::ApplyDamage(AActor* OtherActor, float DamageReduction)
 {
 	ACharacterBase* Character = Cast<ACharacterBase>(OtherActor);

@@ -31,8 +31,6 @@ void UUW_StateBar::InitializeStateBar(UStatComponent* NewStatComponent)
         StatComponent->OnCurrentMPChanged.AddDynamic(this, &UUW_StateBar::OnCurrentMPChanged);
         StatComponent->OnCurrentLevelChanged.AddDynamic(this, &UUW_StateBar::UpdateLevelText);
 
-        UE_LOG(LogTemp, Log, TEXT("[UUW_StateBar::InitializeStateBar] MaxHP %f"), StatComponent->GetMaxHP());
-
         SetMaxHP(StatComponent->GetMaxHP());
         SetMaxMP(StatComponent->GetMaxMP());
 

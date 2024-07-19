@@ -6,12 +6,10 @@
 #include "Animation/AnimInstance.h"
 #include "PlayerAnimInstance.generated.h"
 
-DECLARE_DELEGATE(FOnEnableSwithActionNotifyBeginDelegate);
+DECLARE_DELEGATE(FOnEnableSwitchActionNotifyBeginDelegate);
 DECLARE_DELEGATE(FOnEnableMoveNotifyBeginDelegate);
 DECLARE_DELEGATE(FOnCheckComboAttackNotifyBeginDelegate);
-DECLARE_DELEGATE(FOnAuroraDashEndedDelegate);
 DECLARE_DELEGATE(FOnStopBasicAttackNotifyBeginDelegate);
-DECLARE_DELEGATE(FOnSpawnParticleNotifyBeginDelegate);
 
 UCLASS()
 class PROJECT_AOS_API UPlayerAnimInstance : public UAnimInstance
@@ -37,12 +35,10 @@ public:
     void SetTurnRight(bool InTurnRight) { bCanTurnRight = InTurnRight; }
 
     // Delegates
-    FOnAuroraDashEndedDelegate OnAuroraDashEnded;
     FOnCheckComboAttackNotifyBeginDelegate OnCheckComboAttackNotifyBegin;
     FOnStopBasicAttackNotifyBeginDelegate OnStopBasicAttackNotifyBegin;
     FOnEnableMoveNotifyBeginDelegate OnEnableMoveNotifyBegin;
-    FOnEnableSwithActionNotifyBeginDelegate OnEnableSwithActionNotifyBegin;
-    FOnSpawnParticleNotifyBeginDelegate OnSpawnParticleNotifyBegin;
+    FOnEnableSwitchActionNotifyBeginDelegate OnEnableSwitchActionNotifyBegin;
 
 protected:
     virtual void NativeInitializeAnimation() override;
@@ -50,6 +46,21 @@ protected:
 
 private:
     // AnimNotify functions
+    UFUNCTION()
+    void AnimNotify_CheckHit_Q();
+
+    UFUNCTION()
+    void AnimNotify_CheckHit_E();
+
+    UFUNCTION()
+    void AnimNotify_CheckHit_R();
+
+    UFUNCTION()
+    void AnimNotify_CheckHit_LMB();
+
+    UFUNCTION()
+    void AnimNotify_CheckHit_RMB();
+
     UFUNCTION()
     void AnimNotify_CanNextCombo();
 
@@ -61,12 +72,6 @@ private:
 
     UFUNCTION()
     void AnimNotify_WeakAttackEnd();
-
-    UFUNCTION()
-    void AnimNotify_DashEnded();
-
-    UFUNCTION()
-    void AnimNotify_SpawnParticle();
 
     // Character References
     UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Character", Meta = (AllowPrivateAccess))

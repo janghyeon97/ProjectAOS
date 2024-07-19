@@ -32,6 +32,7 @@ protected:
 	void Move(const FInputActionValue& InValue);
 	void Look(const FInputActionValue& InValue);
 
+	// Ability functions
 	virtual void Ability_Q() override;
 	virtual void Ability_E() override;
 	virtual void Ability_R() override;
@@ -41,12 +42,20 @@ protected:
 	virtual void MontageEnded(UAnimMontage* Montage, bool bInterrupted) override;
 	virtual void OnRep_CharacterStateChanged() override;
 
+	void ExecuteAbilityR(FVector ArrowSpawnLocation, FRotator ArrowSpawnRotation);
+	void ExecuteAbilityLMB(FVector ArrowSpawnLocation, FRotator ArrowSpawnRotation);
+	UAnimMontage* GetMontageBasedOnAttackSpeed(float AttackSpeed);
+
 	void ChangeCameraLength(float TargetLength);
 	void Ability_Q_Fire();
 	void Ability_RMB_Canceled();
 	void Ability_RMB_Fire();
 
+	virtual void ServerNotifyAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent) override;
+
 private:
+	bool ValidateAbilityUsage();
+
 	UFUNCTION(BlueprintCallable, Meta = (AllowPrivateAccess))
 	FVector GetImpactPoint(float TraceRange = 10000.f);
 

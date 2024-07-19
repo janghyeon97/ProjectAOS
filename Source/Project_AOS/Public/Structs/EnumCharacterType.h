@@ -22,9 +22,10 @@ enum class EObjectType : uint32
 	Player			= 0x01 << 0	UMETA(DisplayName = "Player"),
 	Minion			= 0x01 << 1	UMETA(DisplayName = "Minion"),
 	Monster			= 0x01 << 2	UMETA(DisplayName = "Monster"),
-	AICharacter		= 0x01 << 3	UMETA(DisplayName = "AI"),
-	WorldStatic		= 0x01 << 4	UMETA(DisplayName = "WorldStatic"),
-	WorldDynamic	= 0x01 << 5	UMETA(DisplayName = "WorldDynamic")
+	EpicMonster		= 0x01 << 3	UMETA(DisplayName = "EpicMonster"),
+	AICharacter		= 0x01 << 4	UMETA(DisplayName = "AI"),
+	WorldStatic		= 0x01 << 5	UMETA(DisplayName = "WorldStatic"),
+	WorldDynamic	= 0x01 << 6	UMETA(DisplayName = "WorldDynamic")
 };
 ENUM_CLASS_FLAGS(EObjectType);
 

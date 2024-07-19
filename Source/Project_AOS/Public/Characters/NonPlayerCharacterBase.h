@@ -25,7 +25,7 @@ public:
 
 	virtual void SetWidget(class UUserWidgetBase* InUserWidgetBase) override;
 
-	virtual void GetCrowdControl(ECrowdControlBase InCondition = ECrowdControlBase::None, float InDuration = 0.f, float InPercent = 0.f) override;
+	virtual void GetCrowdControl(EBaseCrowdControl InCondition = EBaseCrowdControl::None, float InDuration = 0.f, float InPercent = 0.f) override;
 
 protected:
 	UFUNCTION()

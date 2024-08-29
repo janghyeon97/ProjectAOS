@@ -22,11 +22,6 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-private:
-	// Initialization functions
-	void InitializeAbilityMontages();
-	void InitializeAbilityParticles();
-
 protected:
 	// Utility functions
 	void Move(const FInputActionValue& InValue);
@@ -38,78 +33,40 @@ protected:
 	virtual void Ability_R() override;
 	virtual void Ability_LMB() override;
 	virtual void Ability_RMB() override;
+
 	virtual void Ability_Q_CheckHit() override;
+
+	virtual void CancelAbility();
+	virtual void Ability_Q_Canceled() override;
+	virtual void Ability_RMB_Canceled() override;
+
 	virtual void MontageEnded(UAnimMontage* Montage, bool bInterrupted) override;
 	virtual void OnRep_CharacterStateChanged() override;
+	virtual void OnRep_CrowdControlStateChanged() override;
 
+	void ProcessImpactWithNonStaticActor(const FImpactResult& ImpactResult);
+	void FindAndSetClosestBone(const FImpactResult& ImpactResult, USkeletalMeshComponent* SkeletalMeshComponent);
 	void ExecuteAbilityR(FVector ArrowSpawnLocation, FRotator ArrowSpawnRotation);
 	void ExecuteAbilityLMB(FVector ArrowSpawnLocation, FRotator ArrowSpawnRotation);
 	UAnimMontage* GetMontageBasedOnAttackSpeed(float AttackSpeed);
 
 	void ChangeCameraLength(float TargetLength);
+	
 	void Ability_Q_Fire();
-	void Ability_RMB_Canceled();
 	void Ability_RMB_Fire();
 
-	virtual void ServerNotifyAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent) override;
+	virtual void OnAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent) override;
 
 private:
+	void ExecuteSomethingSpecial();
 	bool ValidateAbilityUsage();
 
-	UFUNCTION(BlueprintCallable, Meta = (AllowPrivateAccess))
-	FVector GetImpactPoint(float TraceRange = 10000.f);
-
 	UFUNCTION(Server, Reliable)
-	void SpawnArrow_Server(UClass* SpawnArrowClass, FTransform SpawnTransform, FArrowProperties InArrowProperties, FDamageInfomation InDamageInfomation);
+	void SpawnArrow_Server(UClass* SpawnArrowClass, AActor* TargetActor, FTransform SpawnTransform, FArrowProperties InArrowProperties, FDamageInformation InDamageInfomation);
 
 private:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character|Montage", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Ability_LMB_FastMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character|Montage", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Ability_LMB_SlowMontage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|Q", Meta = (AllowPrivateAccess))
-	float Ability_Q_Range;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_ArrowSpeed;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_SideDamage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_Range;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_Duration;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_Angle;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|LMB", Meta = (AllowPrivateAccess))
-	float Ability_LMB_ArrowSpeed;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|LMB", Meta = (AllowPrivateAccess))
-	float Ability_LMB_Range;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|RMB", Meta = (AllowPrivateAccess))
-	float Ability_RMB_ArrowSpeed;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sparrow|AbilityStat|RMB", Meta = (AllowPrivateAccess))
-	float Ability_RMB_Range;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Particles", Meta = (AllowPrivateAccess))
 	TObjectPtr<class UParticleSystemComponent> BowParticleSystem;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Particles", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UParticleSystem> Ability_Q_RainOfArrows;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Particles", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UParticleSystem> ArrowParticle_LMB;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character|Particles", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UParticleSystem> ArrowParticle_RMB;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Arrow", Meta = (AllowPrivateAccess))
 	TObjectPtr<UClass> BasicArrowClass;
@@ -126,7 +83,11 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Arrow", Meta = (AllowPrivateAccess))
 	TObjectPtr<AActor> TargetDecalActor;
 
-	FVector CrosshairLocation = FVector::ZeroVector;
+private:
+	float Ability_Q_Range = 0.f;
+	FVector Ability_Q_DecalLocation = FVector::ZeroVector;
+
+
 	FVector Ability_LMB_ImpactPoint = FVector::ZeroVector;
 	bool bTraceImpactPoint = false;
 };

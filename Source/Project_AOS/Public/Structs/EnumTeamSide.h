@@ -4,15 +4,15 @@
 
 #include "CoreMinimal.h"
 
-UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+UENUM(BlueprintType)
 enum class ETeamSideBase : uint8
 {
-	Type	= 0x00		UMETA(Hidden),
-	Blue	= 0x01 << 0 UMETA(DisplayName = "Blue"),
-	Red		= 0x01 << 1 UMETA(DisplayName = "Red"),
-	Neutral = 0x01 << 1 UMETA(DisplayName = "Neutral"),
+	Type	UMETA(Hidden),
+	Blue	UMETA(DisplayName = "Blue"),
+	Red		UMETA(DisplayName = "Red"),
+	Neutral UMETA(DisplayName = "Neutral"),
 };
-ENUM_CLASS_FLAGS(ETeamSideBase);
+
 
 // 플레이어 상태를 나타내는 enum 클래스
 UENUM(BlueprintType)

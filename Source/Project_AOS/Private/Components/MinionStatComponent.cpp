@@ -5,6 +5,7 @@
 #include "Game/AOSGameState.h"
 #include "Game/AOSGameInstance.h"
 #include "GameFramework/Actor.h"
+#include "DataProviders/CharacterDataProviderBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
@@ -17,20 +18,29 @@ UMinionStatComponent::UMinionStatComponent()
     ElapsedTime = 0.f;
 }
 
-void UMinionStatComponent::InitializeStatComponent(EMinionType MinionType)
+void UMinionStatComponent::InitStatComponent(ICharacterDataProviderInterface* InDataProvider, const FName& InRowName)
 {
+    if (!InDataProvider)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UStatComponent::InitStatComponent - DataProvider is null"));
+        return;
+    }
+
+    DataProvider = InDataProvider;
+    RowName = InRowName;
+
     if (GetWorld())
     {
         AAOSGameState* GameState = Cast<AAOSGameState>(UGameplayStatics::GetGameState(GetWorld()));
         if (GameState)
         {
             ElapsedTime = GameState->GetElapsedTime();
-            UpdateStatsBasedOnElapsedTime(MinionType);
+            UpdateStatsBasedOnElapsedTime(RowName);
         }
     }
 }
 
-void UMinionStatComponent::UpdateStatsBasedOnElapsedTime(EMinionType MinionType)
+void UMinionStatComponent::UpdateStatsBasedOnElapsedTime(const FName& InRowName)
 {
     UAOSGameInstance* AOSGameInstance = Cast<UAOSGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     if (!AOSGameInstance)
@@ -39,14 +49,14 @@ void UMinionStatComponent::UpdateStatsBasedOnElapsedTime(EMinionType MinionType)
         return;
     }
 
-    FStatTableRow* MeleeMinionData = AOSGameInstance->GetMinionStat(MinionType);
-    if (!MeleeMinionData)
+    const FStatTableRow* StatRow = DataProvider->GetCharacterStat(InRowName, 1);
+    if (!StatRow)
     {
         UE_LOG(LogTemp, Error, TEXT("[UMinionStatComponent::UpdateStatsBasedOnElapsedTime] Invalid StatTableRow."));
         return;
     }
 
-    TMap<FString, float> UniqueValues = MeleeMinionData->UniqueAttributes;
+    TMap<FString, float> UniqueValues = StatRow->UniqueAttributes;
 
     const float* HealthIncreasePtr = UniqueValues.Find("HealthIncreaseAmount");
     const float* AdditionalIncreasePtr = UniqueValues.Find("AdditionalHealthAmount");
@@ -54,8 +64,8 @@ void UMinionStatComponent::UpdateStatsBasedOnElapsedTime(EMinionType MinionType)
     const float StartIncreaseTime = 165.0f; // 2:45 in seconds
     const float MaxHealthLimit = 1300.0f;
     const float Interval = 90.0f; // 90 seconds
-    const float InitialMaxHP = MeleeMinionData->MaxHP;
-    const float InitialAttackDamage = MeleeMinionData->AttackDamage;
+    const float InitialMaxHP = StatRow->MaxHP;
+    const float InitialAttackDamage = StatRow->AttackDamage;
     const float BaseHealthIncrease = (HealthIncreasePtr != nullptr) ? *HealthIncreasePtr : 22.f;
     const float AdditionalIncreasePerInterval = (AdditionalIncreasePtr != nullptr) ? *AdditionalIncreasePtr : 0.3f;
 
@@ -79,9 +89,32 @@ void UMinionStatComponent::UpdateStatsBasedOnElapsedTime(EMinionType MinionType)
     float CurrentMaxHealth = FMath::Min(InitialMaxHP + TotalHealthIncrease, MaxHealthLimit);
     float CurrentAttackDamage = InitialAttackDamage + TotalAttackIncrease;
 
-    // 스탯 설정
-    SetMaxHP(CurrentMaxHealth);
-    SetCurrentHP(CurrentMaxHealth);
-    SetAttackDamage(CurrentAttackDamage);
+    // 기본 스탯 설정
+    BaseMaxHP = CurrentMaxHealth;
+    BaseMaxMP = 0;
+    BaseHealthRegeneration = StatRow->HealthRegeneration;
+    BaseManaRegeneration = StatRow->ManaRegeneration;
+    BaseAttackDamage = CurrentAttackDamage;
+    BaseAbilityPower = StatRow->AbilityPower;
+    BaseDefensePower = StatRow->DefensePower;
+    BaseMagicResistance = StatRow->MagicResistance;
+    BaseAttackSpeed = StatRow->AttackSpeed;
+    BaseCriticalChance = StatRow->CriticalChance;
+    BaseMovementSpeed = StatRow->MovementSpeed;
+
+    // 누적된 변경값은 초기화 시점에서는 모두 0이어야 합니다.
+    AccumulatedFlatMaxHP = 0;
+    AccumulatedFlatMaxMP = 0;
+    AccumulatedFlatMaxEXP = 0;
+    AccumulatedFlatHealthRegeneration = 0;
+    AccumulatedFlatManaRegeneration = 0;
+    AccumulatedFlatAttackDamage = 0;
+    AccumulatedFlatDefensePower = 0;
+    AccumulatedFlatMagicResistance = 0;
+    AccumulatedFlatCriticalChance = 0;
+    AccumulatedFlatAttackSpeed = 0;
+    AccumulatedFlatMovementSpeed = 0;
+
+    RecalculateStats();
 }
 

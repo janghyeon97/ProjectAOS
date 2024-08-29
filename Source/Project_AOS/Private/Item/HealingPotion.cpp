@@ -41,7 +41,7 @@ void AHealingPotion::Use(AAOSPlayerState* PlayerState)
         {
             if (UStatComponent* ValidPlayerStatComponent = WeakPlayerStatComponent.Get())
             {
-                ValidPlayerStatComponent->SetCurrentHP(ValidPlayerStatComponent->GetCurrentHP() + HealthRegeneration);
+                ValidPlayerStatComponent->ModifyCurrentHP(HealthRegeneration);
             }
         };
 

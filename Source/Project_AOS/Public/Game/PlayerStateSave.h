@@ -20,14 +20,17 @@ public:
 
 public:
 	UPROPERTY()
-	FString PlayerUniqueID;
+	FName PlayerUniqueID;
 
 	UPROPERTY()
-	ETeamSideBase TeamSide = ETeamSideBase::Type;
+	ETeamSideBase TeamSide;
 
 	UPROPERTY()
-	int32 PlayerIndex = -1;
+	int32 PlayerIndex;
 
 	UPROPERTY()
-	int32 SelectedChampionIndex = -1;
+	int32 SelectedChampionIndex;
+
+	UPROPERTY()
+	FName SelectedChampionName;
 };

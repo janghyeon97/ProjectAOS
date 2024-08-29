@@ -6,7 +6,7 @@
 
 AMeleeMinion::AMeleeMinion()
 {
-	MinionType = EMinionType::Melee;
+	MinionType = "Melee";
 }
 
 void AMeleeMinion::BeginPlay()

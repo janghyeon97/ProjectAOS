@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Structs/DamageInfomationStruct.h"
+#include "Structs/CustomCombatData.h"
 #include "ArrowBase.generated.h"
 
 USTRUCT(BlueprintType)
@@ -28,10 +28,13 @@ public:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Arrow|Properties", meta = (ClampMin = "0.0", ClampMax = "10000.0"))
 	float Range = 0;
 
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Arrow|Properties", meta = (ClampMin = "0.0", ClampMax = "10000.0"))
+	float Radius = 0;
+
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Arrow|Properties", meta = (ClampMin = "0", ClampMax = "100", uIMin = "0", uIMax = "100"))
 	int PierceCount;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Arrow|Properties", meta = (ClampMin = "0.0", ClampMax = "1.0", uIMin = "0.0", uIMax = "1.0"))
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Arrow|Properties", meta = (ClampMin = "0.0", ClampMax = "100", uIMin = "0.0", uIMax = "100"))
 	float Pierce_DamageReduction;
 };
 
@@ -51,7 +54,9 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
-	virtual void InitializeArrowActor(FArrowProperties InArrowProperties, FDamageInfomation InDamageInfomation);
+	virtual void OnArrowHit(const FHitResult& HitResult) {};
+
+	virtual void InitializeArrowActor(AActor* InTargetActor, FArrowProperties InArrowProperties, FDamageInformation InDamageInfomation);
 
 	virtual void AttachToNearestEnemyMesh(const FVector& ImpactPoint);
 
@@ -100,11 +105,14 @@ protected:
 	UPROPERTY()
 	TWeakObjectPtr<class AAOSCharacterBase> OwnerCharacter;
 
+	UPROPERTY()
+	AActor* TargetActor = nullptr;
+
 	UPROPERTY(Replicated)
 	FArrowProperties ArrowProperties;
 
 	UPROPERTY(Replicated)
-	FDamageInfomation DamageInfomation;
+	FDamageInformation DamageInformation;
 
 	UPROPERTY(ReplicatedUsing = OnRep_ArrowDestroyed)
 	bool bIsDestroyed;

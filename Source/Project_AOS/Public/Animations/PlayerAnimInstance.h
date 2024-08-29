@@ -10,6 +10,69 @@ DECLARE_DELEGATE(FOnEnableSwitchActionNotifyBeginDelegate);
 DECLARE_DELEGATE(FOnEnableMoveNotifyBeginDelegate);
 DECLARE_DELEGATE(FOnCheckComboAttackNotifyBeginDelegate);
 DECLARE_DELEGATE(FOnStopBasicAttackNotifyBeginDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEnableGravityNotifyBeginDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDisableGravityNotifyBeginDelegate);
+
+UENUM(BlueprintType, meta = (Bitflags))
+enum class ECharacterState : uint8
+{
+    None    = 0      UMETA(DisplayName = "None"),
+    Q       = 1 << 0 UMETA(DisplayName = "Q"),                  // 00000001
+    E       = 1 << 1 UMETA(DisplayName = "E"),                  // 00000010
+    R       = 1 << 2 UMETA(DisplayName = "R"),                  // 00000100
+    LMB     = 1 << 3 UMETA(DisplayName = "Left Mouse Button"),  // 00001000
+    RMB     = 1 << 4 UMETA(DisplayName = "Right Mouse Button")  // 00010000
+};
+
+UENUM(BlueprintType)
+enum class EDirection : uint8
+{
+    None        UMETA(Hidden),
+    Forward     UMETA(DisplayName = "Forward"),
+    Backward    UMETA(DisplayName = "Backward"),            
+    Right       UMETA(DisplayName = "Right"),            
+    Left        UMETA(DisplayName = "Left"), 
+};
+
+USTRUCT(BlueprintType)
+struct FDirectionSettings
+{
+    GENERATED_BODY()
+
+public:
+    FDirectionSettings()
+        : ForwardMin(0)
+        , ForwardMax(0)
+        , BackwardMin(0)
+        , BackwardMax(0)
+        , DeadZone(0)
+    {
+    };
+
+    FDirectionSettings(float InForwardMin, float InForwardMax, float InBackwardMin, float InBackwardMax, float InDeadZone)
+        : ForwardMin(InForwardMin)
+        , ForwardMax(InForwardMax)
+        , BackwardMin(InBackwardMin)
+        , BackwardMax(InBackwardMax)
+        , DeadZone(InDeadZone)
+    {
+    };
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float ForwardMin;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float ForwardMax;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float BackwardMin;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float BackwardMax;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DeadZone;
+};
 
 UCLASS()
 class PROJECT_AOS_API UPlayerAnimInstance : public UAnimInstance
@@ -26,7 +89,6 @@ public:
     void SetRootYawOffset(float DeltaSeconds);
     void SetTurningTime();
     void TurnInPlace(float DeltaSeconds);
-    void PlayMontage(UAnimMontage* Montage, float PlayRate);
 
     void UpdateDeltaRotation();
     void SetTargetYawAndAnimLength(float AbsRootYawOffset);
@@ -34,15 +96,22 @@ public:
     void SetTurnLeft(bool InTurnLeft) { bCanTurnLeft = InTurnLeft; }
     void SetTurnRight(bool InTurnRight) { bCanTurnRight = InTurnRight; }
 
+    UFUNCTION(BlueprintPure, Category = "Animation", meta = (BlueprintThreadSafe))
+    bool IsCharacterStateActive(ECharacterState State) const;
+
     // Delegates
     FOnCheckComboAttackNotifyBeginDelegate OnCheckComboAttackNotifyBegin;
     FOnStopBasicAttackNotifyBeginDelegate OnStopBasicAttackNotifyBegin;
     FOnEnableMoveNotifyBeginDelegate OnEnableMoveNotifyBegin;
     FOnEnableSwitchActionNotifyBeginDelegate OnEnableSwitchActionNotifyBegin;
+    FOnEnableGravityNotifyBeginDelegate OnEnableGravityNotifyBegin;
+    FOnDisableGravityNotifyBeginDelegate OnDisableGravityNotifyBegin;
 
 protected:
     virtual void NativeInitializeAnimation() override;
     virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+    virtual void NativeThreadSafeUpdateAnimation(float _DeltaSeconds) override;
+    virtual void NativePostEvaluateAnimation() override;
 
 private:
     // AnimNotify functions
@@ -73,6 +142,20 @@ private:
     UFUNCTION()
     void AnimNotify_WeakAttackEnd();
 
+    UFUNCTION()
+    void AnimNotify_DisableGravity();
+
+    UFUNCTION()
+    void AnimNotify_EnableGravity();
+
+protected:
+    UFUNCTION(BlueprintPure, Category = "Character|ThreadSafe", meta = (BlueprintThreadSafe))
+    class UCharacterMovementComponent* GetMovementComponent() const;
+
+    UFUNCTION(BlueprintPure, Category = "Character|ThreadSafe", meta = (BlueprintThreadSafe))
+    EDirection CalculateLocomotionDirection(const float InAngle) const;
+
+protected:
     // Character References
     UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Character", Meta = (AllowPrivateAccess))
     TObjectPtr<class AAOSCharacterBase> OwnerCharacter;
@@ -119,6 +202,45 @@ private:
 
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Anim", Meta = (AllowPrivateAccess))
     bool bIsAbilityRActive = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    ECharacterState CharacterState = ECharacterState::None;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    EDirection Direction;
+
+    /* ------------------------------------------------------------------------------------------------------------ */
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    FVector CurrentWorldLocation;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    FRotator CurrentWorldRotation;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    FVector Acceleration;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    FVector Acceleration2D;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    bool bHasAcceleration; 
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    FVector Velocity;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    FVector Velocity2D;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    float LocomotionAngle;
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    float DisplacementSinceLastUpdate;
+
+   
+
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|ThreadSafe", Meta = (AllowPrivateAccess))
+    float DisplacementSpeed;
 
     // Rotation and Timing Variables
     FRotator MovingRotation = FRotator::ZeroRotator;

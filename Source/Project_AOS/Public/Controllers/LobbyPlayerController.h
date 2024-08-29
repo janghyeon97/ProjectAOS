@@ -49,10 +49,10 @@ public:
 
 	// 캐릭터 선택 정보 업데이트 함수
 	UFUNCTION(Server, Reliable)
-	void UpdatePlayerSelection_Server(ETeamSideBase Team, int32 PlayerIndex, const FString& InPlayerName, int32 CharacterIndex, FLinearColor Color, bool bShowCharacterDetails);
+	void UpdatePlayerSelection_Server(ETeamSideBase Team, int32 PlayerIndex, const FName& InPlayerName, const FName& ChampionName, FLinearColor Color, bool bShowCharacterDetails);
 
 	UFUNCTION(Client, Reliable)
-	void UpdatePlayerSelection_Client(ETeamSideBase Team, int32 PlayerIndex, const FString& InPlayerName, int32 CharacterIndex, FLinearColor Color, bool bShowCharacterDetails);
+	void UpdatePlayerSelection_Client(ETeamSideBase Team, int32 PlayerIndex, const FName& InPlayerName, const FName& ChampionName, FLinearColor Color, bool bShowCharacterDetails);
 
 	// 밴픽 시간 업데이트 함수
 	UFUNCTION(Client, Reliable)

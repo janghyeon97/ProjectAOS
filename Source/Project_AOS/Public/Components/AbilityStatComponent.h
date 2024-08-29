@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Structs/AbilityData.h"
+#include "Structs/EnumAbilityType.h"
+#include "Structs/EnumAbilityID.h"
 #include "AbilityStatComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAbilityQCooldownChangedDelegate, float, MaxCooldown, float, CurrentCooldown);
@@ -20,6 +22,12 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAbilityLevelChangedDelegate, enum EAbili
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVisibleDescriptionDelegate, FName, String);
 
 
+struct FStatTableRow;
+struct FAbilityStatTableRow;
+class ICharacterDataProviderInterface;
+class UStatComponent;
+
+
 USTRUCT(BlueprintType)
 struct FAbilityDetails
 {
@@ -27,19 +35,29 @@ struct FAbilityDetails
 
 public:
 	FAbilityDetails()
-		: Name(FString())
+		: AbilityID(EAbilityID::None)
+		, Name(FString())
 		, Description(FString())
 		, MaxLevel(0)
 		, CurrentLevel(0)
 		, MaxInstances(0)
 		, InstanceIndex(0)
 		, ReuseDuration(0.f)
-		, bAblityReady(false)
+		, bAbilityReady(false)
+		, bCanCastAbility(true)
 		, bIsUpgradable(false)
+		, LastUseTime(0.f)
+		, MaxCooldown(0.f)
+		, Cooldown(0.f)
+		, AbilityType(EAbilityType::None)
+		, AbilityDetection(EAbilityDetection::None)
 	{
 	}
 
 public:
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
+	EAbilityID AbilityID;
+
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
 	FString Name;
 
@@ -62,11 +80,30 @@ public:
 	float ReuseDuration;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
-	bool bAblityReady;
+	bool bAbilityReady;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
+	bool bCanCastAbility;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
 	bool bIsUpgradable;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
+	float LastUseTime;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
+	float MaxCooldown;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
+	float Cooldown;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
+	EAbilityType AbilityType;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|AbilityStat")
+	EAbilityDetection AbilityDetection;
 };
+
 
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
@@ -86,13 +123,18 @@ protected:
 
 public:
 	void InitializeAbility(EAbilityID AbilityID, const int32 InLevel);
-	void InitAbilityStatComponent(class UStatComponent* InStatComponent, const int32 CharacterIndex);
+	void InitAbilityStatComponent(ICharacterDataProviderInterface* InDataProvider, UStatComponent* InStatComponent, const FName& InRowName);
 
 	FAbilityDetails& GetAbilityInfomation(EAbilityID AbilityID);
-	TArray<FAbilityStatTable>& GetAbilityStatTables(EAbilityID AbilityID);
 	const FAbilityStatTable& GetAbilityStatTable(EAbilityID AbilityID) const;
-	bool IsAbilityReady(EAbilityID AbilityID);
+	float GetUniqueValue(EAbilityID AbilityID, const FString& InKey, float DefaultValue);
+	bool IsAbilityReady(EAbilityID AbilityID) const;
 	void BanUseAbilityFewSeconds(float Seconds);
+	void BanUseAbilityFewSeconds(EAbilityDetection AbilityDetection, float Seconds);
+
+	float GetAbilityCurrentCooldown() const;
+
+	TArray<FAbilityDetails*> GetAbilityDetailsPtrs();
 
 	UFUNCTION(Server, Reliable)
 	void UseAbility(EAbilityID AbilityID, float CurrentTime);
@@ -146,74 +188,66 @@ public:
 
 private:
 	void InitializeAbility(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, const int32 InLevel);
-	void InitializeAbilityInformation(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, int32 CharacterIndex);
+	void InitializeAbilityInformation(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, const FName& InRowName);
+	bool GetStatTablesAndIndex(EAbilityID AbilityID, const TArray<FAbilityStatTable>*& OutStatTables, int32& OutArrayIndex) const;
 
 	void UseSpecificAbility(FAbilityDetails& AbilityInfo, TArray<FAbilityStatTable>& AbilityStat, float& Cooldown, float& LastUseTime, float CurrentTime, EAbilityID AbilityID);
 	void UpdateAbilityUpgradeStatus(EAbilityID AbilityID, FAbilityDetails& AbilityInfo, int32 InNewCurrentLevel);
+
+	void SetupAbilityCooldown(FAbilityDetails& AbilityInfo, const TArray<FAbilityStatTable>& AbilityStat, int AbilityHaste, float& MaxCooldown, float& CurrentCooldown, FTimerHandle& TimerHandle);
+	void HandleAbilityReady(EAbilityID AbilityID);
+	void NotifyCooldownChanged(EAbilityID AbilityID, float MaxCooldown, float CurrentCooldown);
+
+	float GetUniqueValue(EAbilityID AbilityID, const FString& InKey);
 
 	UPROPERTY()
 	TObjectPtr<class UAOSGameInstance> GameInstance;
 
 	UPROPERTY()
-	TObjectPtr<class AAOSCharacterBase> OwnerCharacter;
+	TObjectPtr<class ACharacterBase> OwnerCharacter;
 
 	UPROPERTY()
 	TWeakObjectPtr<class UStatComponent> StatComponent;
 
-	UPROPERTY(Replicated)
+public:
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	FAbilityDetails Ability_Q_Info;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	FAbilityDetails Ability_E_Info;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	FAbilityDetails Ability_R_Info;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	FAbilityDetails Ability_LMB_Info;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	FAbilityDetails Ability_RMB_Info;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	TArray<FAbilityStatTable> Ability_Q_Stat;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	TArray<FAbilityStatTable> Ability_E_Stat;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	TArray<FAbilityStatTable> Ability_R_Stat;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	TArray<FAbilityStatTable> Ability_LMB_Stat;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "Ability", meta = (AllowPrivateAccess = "true"))
 	TArray<FAbilityStatTable> Ability_RMB_Stat;
 
-	float Ability_Q_LastUseTime;
-	float Ability_E_LastUseTime;
-	float Ability_R_LastUseTime;
-	float Ability_LMB_LastUseTime;
-	float Ability_RMB_LastUseTime;
-
-	float Ability_Q_MaxCooldown;
-	float Ability_E_MaxCooldown;
-	float Ability_R_MaxCooldown;
-	float Ability_LMB_MaxCooldown;
-	float Ability_RMB_MaxCooldown;
-
-	float Ability_Q_Cooldown;
-	float Ability_E_Cooldown;
-	float Ability_R_Cooldown;
-	float Ability_LMB_Cooldown;
-	float Ability_RMB_Cooldown;
-
+private:
 	FTimerHandle Ability_Ban_Timer;
-	FTimerHandle Ability_Q_Timer;
-	FTimerHandle Ability_E_Timer;
-	FTimerHandle Ability_R_Timer;
-	FTimerHandle Ability_LMB_Timer;
-	FTimerHandle Ability_RMB_Timer;
 
+	TMap<EAbilityID, FTimerHandle> CooldownTimers;
+	TMap<int32, FTimerHandle> GameTimers;
+
+	FName RowName;
 	int32 ChampionIndex = 0;
+
+	ICharacterDataProviderInterface* DataProvider;
 };

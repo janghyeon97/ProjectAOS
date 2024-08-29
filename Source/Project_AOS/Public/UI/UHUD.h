@@ -113,7 +113,7 @@ public:
 	void UpdateMPRegenText(float InOldMPRegen, float InNewMPRegen);
 
 	UFUNCTION()
-	void UpdateChampionText(const FString& NewString);
+	void UpdateChampionText(const FName& NewString);
 
 	UFUNCTION()
 	void UpdateInventory(const TArray<FItemInformation>& Items);
@@ -131,7 +131,7 @@ public:
 	virtual void UpdateRespawnTimeText(int32 InPlayerIndex, float RemainingTime);
 
 public:
-	void InitializeHUD(const int32 Index);
+	void InitializeHUD(const int32 InChampionIndex, const FName& InChampionName);
 	void BindComponents(AAOSGameState* InGameState, AAOSPlayerState* InPlayerState, UStatComponent* InStatComponent, UAbilityStatComponent* InAbilityStatComponent);
 
 	// Getter and Setter for OwningActor
@@ -351,8 +351,9 @@ private:
 	UMaterialInstanceDynamic* CharacterImageMaterialRef;
 	UMaterialInstanceDynamic* LevelBackgroundMaterialRef;
 
-	FString PlayerCharacterName;
-
+	FName PlayerCharacterName;
 	int32 PlayerIndex = 0;
+
+	FName ChampionName;
 	int32 ChampionIndex = 0;
 };

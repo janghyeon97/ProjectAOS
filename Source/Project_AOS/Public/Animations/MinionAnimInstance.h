@@ -22,6 +22,12 @@ protected:
 public:
 	void PlayMontage(UAnimMontage* Montage, float PlayRate = 1.0f);
 
+	UFUNCTION()
+	void AnimNotify_CanNextCombo();
+
+	UFUNCTION()
+	void AnimNotify_CheckHit_LMB();
+
 private:
 	/* Character Ref */
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "MinionAnimInstance", Meta = (AllowPrivateAccess))

@@ -7,6 +7,8 @@ UPlayerStateSave::UPlayerStateSave()
 {
 	TeamSide = ETeamSideBase::Type;
 
+	PlayerUniqueID = NAME_None;
 	PlayerIndex = -1;
 	SelectedChampionIndex = -1;
+	SelectedChampionName = NAME_None;
 }

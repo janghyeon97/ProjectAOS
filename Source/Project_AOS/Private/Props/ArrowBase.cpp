@@ -9,6 +9,7 @@
 #include "Characters/AOSCharacterBase.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 AArrowBase::AArrowBase()
 {
@@ -23,6 +24,7 @@ AArrowBase::AArrowBase()
 	BoxCollision->SetBoxExtent(FVector(20.f, 10.f, 10.f));
 	BoxCollision->SetRelativeLocationAndRotation(FVector(135.f, 0.f, 0.f), FRotator(0.f, 0.f, 0.f));
 	BoxCollision->SetCollisionProfileName(FName("Projectile"));
+	BoxCollision->BodyInstance.bUseCCD = true;
 
 	ArrowMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArrowMeshComponent"));
 	ArrowMesh->SetupAttachment(BoxCollision);
@@ -66,17 +68,18 @@ void AArrowBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	
 	DOREPLIFETIME(ThisClass, ArrowProperties);
-	DOREPLIFETIME(ThisClass, DamageInfomation);
+	DOREPLIFETIME(ThisClass, DamageInformation);
 	DOREPLIFETIME(ThisClass, bIsDestroyed);
 }
 
-void AArrowBase::InitializeArrowActor(FArrowProperties InArrowProperties, FDamageInfomation InDamageInfomation)
+void AArrowBase::InitializeArrowActor(AActor* InTargetActor, FArrowProperties InArrowProperties, FDamageInformation InDamageInfomation)
 {
 	ProjectileMovement->InitialSpeed = InArrowProperties.Speed;
 	ProjectileMovement->MaxSpeed = InArrowProperties.Speed;
 
+	TargetActor = InTargetActor;
 	ArrowProperties = InArrowProperties;
-	DamageInfomation = InDamageInfomation;
+	DamageInformation = InDamageInfomation;
 }
 
 void AArrowBase::Tick(float DeltaTime)
@@ -89,10 +92,34 @@ void AArrowBase::Tick(float DeltaTime)
 		{
 			FVector ArrowLocation = GetActorLocation();
 			float Distance = static_cast<float>(FVector::Dist2D(OwnerLocation, ArrowLocation));
+			UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Owner: %s, Range: %f, Distance: %f"), *Owner->GetName(), ArrowProperties.Range, Distance), true, true, FLinearColor::Green, 2.0f, "4");
+
 			if (Distance >= ArrowProperties.Range)
 			{
 				Destroy(true);
 			}
+		}
+	}
+
+	if (HasAuthority() && GetVelocity().SizeSquared() > 0.0f)
+	{
+		FVector StartLocation = GetActorLocation();
+		FVector EndLocation = StartLocation + (GetVelocity() * DeltaTime);
+
+		FHitResult HitResult;
+
+		// Line Trace (Raycast) 실행
+		bool bHasHit = GetWorld()->LineTraceSingleByChannel(
+			HitResult,
+			StartLocation,
+			EndLocation,
+			ECC_Visibility,  // 적절한 충돌 채널을 선택 (필요에 따라 다른 채널 사용 가능)
+			FCollisionQueryParams(FName(TEXT("ArrowTrace")), true, this)
+		);
+
+		if (bHasHit)
+		{
+			OnArrowHit(HitResult);
 		}
 	}
 }
@@ -177,16 +204,16 @@ void AArrowBase::ApplyDamage(AActor* OtherActor, float DamageReduction)
 	ACharacterBase* Character = Cast<ACharacterBase>(OtherActor);
 	if (::IsValid(Character))
 	{
-		if (EnumHasAnyFlags(DamageInfomation.DamageType, EDamageType::Physical))
+		if (EnumHasAnyFlags(DamageInformation.DamageType, EDamageType::Physical))
 		{
-			DamageInfomation.PhysicalDamage = DamageInfomation.PhysicalDamage * (1 - DamageReduction);
+			DamageInformation.PhysicalDamage *= (1.0f - DamageReduction / 100.0f);
 		}
-		if (EnumHasAnyFlags(DamageInfomation.DamageType, EDamageType::Magic))
+		if (EnumHasAnyFlags(DamageInformation.DamageType, EDamageType::Magic))
 		{
-			DamageInfomation.MagicDamage = DamageInfomation.MagicDamage * (1 - DamageReduction);
+			DamageInformation.MagicDamage *= (1.0f - DamageReduction / 100.0f);
 		}
 
-		OwnerCharacter->ApplyDamage_Server(Character, DamageInfomation, OwnerCharacter->GetController(), OwnerCharacter.Get());
+		OwnerCharacter->ApplyDamage_Server(Character, DamageInformation, OwnerCharacter->GetController(), OwnerCharacter.Get());
 	}
 }
 

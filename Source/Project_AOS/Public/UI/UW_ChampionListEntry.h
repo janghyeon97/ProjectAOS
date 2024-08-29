@@ -21,7 +21,7 @@ public:
     void PlaySelectSound();
 
     void UpdateChampionIndex(int32 Index);
-    void UpdateChampionNameText(FString InString);
+    void UpdateChampionNameText(const FName& InString);
     void UpdateChampionNameColor(FLinearColor InColor);
     void UpdateBorderImageColor(FLinearColor InColor);
     void UpdateChampionImage(UTexture* InTexture);
@@ -32,7 +32,7 @@ public:
     int32 GetChampionIndex() const { return ChampionIndex; };
 
     UFUNCTION(BlueprintCallable)
-    FString GetChampionName() const;
+    FName GetChampionName() const { return ChampionName; };
 
     UFUNCTION()
     void OnButtonClicked();
@@ -56,5 +56,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
     USoundBase* ChampionSelectSound;
 
+    FName ChampionName;
     int32 ChampionIndex;
 };

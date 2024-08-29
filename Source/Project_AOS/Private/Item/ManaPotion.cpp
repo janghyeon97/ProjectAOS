@@ -43,7 +43,7 @@ void AManaPotion::Use(AAOSPlayerState* PlayerState)
         {
             if (UStatComponent* ValidPlayerStatComponent = WeakPlayerStatComponent.Get())
             {
-                ValidPlayerStatComponent->SetCurrentMP(ValidPlayerStatComponent->GetCurrentMP() - ManaRegeneration);
+                ValidPlayerStatComponent->ModifyCurrentMP(ManaRegeneration);
             }
         };
 

@@ -58,17 +58,17 @@ void AItem::BindToPlayer(AAOSCharacterBase* Character)
     }
 }
 
-void AItem::OnHit(FDamageInfomation& DamageInfomation)
+void AItem::OnHit(FDamageInformation& DamageInformation)
 {
     // Implement functionality for when character is hit
 }
 
-void AItem::OnAttack(FDamageInfomation& DamageInfomation)
+void AItem::OnAttack(FDamageInformation& DamageInformation)
 {
     // Implement functionality for when character attacks
 }
 
-void AItem::OnAbilityEffects(FDamageInfomation& DamageInfomation)
+void AItem::OnAbilityEffects(FDamageInformation& DamageInformation)
 {
     // Implement functionality for ability effects
 }
@@ -133,65 +133,67 @@ void AItem::ModifyStat(AAOSCharacterBase* Character, T(UStatComponent::* Getter)
     }
 
     T CurrentValue = (PlayerStatComponent->*Getter)();
-    (PlayerStatComponent->*Setter)(CurrentValue + Value);
+    (PlayerStatComponent->*Setter)(Value);
 }
 
 void AItem::ModifyMaxHealthPoints(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetMaxHP, &UStatComponent::SetMaxHP, Value);
+    ModifyStat(Character, &UStatComponent::GetMaxHP, &UStatComponent::ModifyAccumulatedFlatMaxHP, Value);
+    ModifyStat(Character, &UStatComponent::GetCurrentHP, &UStatComponent::ModifyCurrentHP, Value);
 }
 
 void AItem::ModifyMaxManaPoints(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetMaxMP, &UStatComponent::SetMaxMP, Value);
+    ModifyStat(Character, &UStatComponent::GetMaxMP, &UStatComponent::ModifyAccumulatedFlatMaxMP, Value);
+    ModifyStat(Character, &UStatComponent::GetCurrentMP, &UStatComponent::ModifyCurrentMP, Value);
 }
 
 void AItem::ModifyHealthRegeneration(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetHealthRegeneration, &UStatComponent::SetHealthRegeneration, Value);
+    ModifyStat(Character, &UStatComponent::GetHealthRegeneration, &UStatComponent::ModifyAccumulatedFlatHealthRegeneration, Value);
 }
 
 void AItem::ModifyManaRegeneration(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetManaRegeneration, &UStatComponent::SetManaRegeneration, Value);
+    ModifyStat(Character, &UStatComponent::GetManaRegeneration, &UStatComponent::ModifyAccumulatedFlatManaRegeneration, Value);
 }
 
 void AItem::ModifyAttackDamage(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetAttackDamage, &UStatComponent::SetAttackDamage, Value);
+    ModifyStat(Character, &UStatComponent::GetAttackDamage, &UStatComponent::ModifyAccumulatedFlatAttackDamage, Value);
 }
 
 void AItem::ModifyAbilityPower(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetAbilityPower, &UStatComponent::SetAbilityPower, Value);
+    ModifyStat(Character, &UStatComponent::GetAbilityPower, &UStatComponent::ModifyAccumulatedFlatAbilityPower, Value);
 }
 
 void AItem::ModifyDefensePower(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetDefensePower, &UStatComponent::SetDefensePower, Value);
+    ModifyStat(Character, &UStatComponent::GetDefensePower, &UStatComponent::ModifyAccumulatedFlatDefensePower, Value);
 }
 
 void AItem::ModifyMagicResistance(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetMagicResistance, &UStatComponent::SetMagicResistance, Value);
+    ModifyStat(Character, &UStatComponent::GetMagicResistance, &UStatComponent::ModifyAccumulatedFlatMagicResistance, Value);
 }
 
 void AItem::ModifyAttackSpeed(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetAttackSpeed, &UStatComponent::SetAttackSpeed, Value);
+    ModifyStat(Character, &UStatComponent::GetAttackSpeed, &UStatComponent::ModifyAccumulatedPercentAttackSpeed, Value);
 }
 
 void AItem::ModifyAbilityHaste(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetAbilityHaste, &UStatComponent::SetAbilityHaste, Value);
+    ModifyStat(Character, &UStatComponent::GetAbilityHaste, &UStatComponent::ModifyAccumulatedFlatAbilityHaste, Value);
 }
 
 void AItem::ModifyCriticalChance(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetCriticalChance, &UStatComponent::SetCriticalChance, Value);
+    ModifyStat(Character, &UStatComponent::GetCriticalChance, &UStatComponent::ModifyAccumulatedFlatCriticalChance, Value);
 }
 
 void AItem::ModifyMovementSpeed(AAOSCharacterBase* Character, int32 Value)
 {
-    ModifyStat(Character, &UStatComponent::GetMovementSpeed, &UStatComponent::SetMovementSpeed, Value);
+    ModifyStat(Character, &UStatComponent::GetMovementSpeed, &UStatComponent::ModifyAccumulatedPercentMovementSpeed, Value);
 }

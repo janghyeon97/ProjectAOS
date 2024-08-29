@@ -2,14 +2,14 @@
 
 
 #include "AI/BTTask_Attack.h"
-#include "Controllers/NPCAIController.h"
-#include "Characters/AOSCharacterBase.h"
-#include "Characters/NonPlayerCharacterBase.h"
-#include "Components/StatComponent.h"
+#include "Controllers/BaseAIController.h"
+#include "Characters/CharacterBase.h"
+#include "Characters/MinionBase.h"
 #include "BehaviorTree/BlackboardComponent.h"
 
-UBTTask_Attack::UBTTask_Attack()	
+UBTTask_Attack::UBTTask_Attack()
 {
+	NodeName = TEXT("Attack");
 	bNotifyTick = true;
 }
 
@@ -17,43 +17,51 @@ void UBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemo
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	ANPCAIController* AIC = Cast<ANPCAIController>(OwnerComp.GetAIOwner());
-
-	if (::IsValid(AIC))
+	AAIController* AIController = Cast<AAIController>(OwnerComp.GetAIOwner());
+	if (!AIController)
 	{
-		ANonPlayerCharacterBase* NPC = Cast<ANonPlayerCharacterBase>(AIC->GetPawn());
+		return;
+	}
 
-		if (::IsValid(NPC))
-		{
-			AAOSCharacterBase* TargetPlayerCharacter =Cast<AAOSCharacterBase>
-				(OwnerComp.GetBlackboardComponent()->GetValueAsObject(ANPCAIController::TargetActorKey));
-			if (::IsValid(TargetPlayerCharacter))
-			{
-				bool bResult = (NPC->GetDistanceTo(TargetPlayerCharacter) <= 200) ? true : false;
-				OwnerComp.GetBlackboardComponent()->SetValueAsBool(ANPCAIController::IsPlayerDetectedKey, bResult);
-			}
+	AMinionBase* AICharacter = Cast<AMinionBase>(AIController->GetPawn());
+	if (!AICharacter)
+	{
+		return;
+	}
 
-			if (NPC->GetIsAttacking() == false)
-			{
-				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
-			}
-		}
+	ACharacterBase* TargetCharacter = Cast<ACharacterBase>(OwnerComp.GetBlackboardComponent()->GetValueAsObject(ABaseAIController::TargetActorKey));
+	if (!TargetCharacter)
+	{
+		return;
+	}
+
+	if (EnumHasAnyFlags(TargetCharacter->CharacterState, EBaseCharacterState::Death))
+	{
+		OwnerComp.GetBlackboardComponent()->ClearValue(ABaseAIController::TargetActorKey);
+		AICharacter->ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::AttackEnded);
+		AICharacter->ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Attacking);
+		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+	}
+
+	if (EnumHasAnyFlags(AICharacter->CharacterState, EBaseCharacterState::AttackEnded))
+	{
+		AICharacter->ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::AttackEnded);
+		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 	}
 }
 
 EBTNodeResult::Type UBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	EBTNodeResult::Type Result = Super::ExecuteTask(OwnerComp, NodeMemory);
-
-	ANPCAIController* AIC = Cast<ANPCAIController>(OwnerComp.GetAIOwner());
-	if (::IsValid(AIC))
+	AAIController* AIController = Cast<AAIController>(OwnerComp.GetAIOwner());
+	if (!AIController)
 	{
-		ANonPlayerCharacterBase* NPC = Cast<ANonPlayerCharacterBase>(AIC->GetPawn());
+		return EBTNodeResult::Failed;
+	}
 
-		if (::IsValid(NPC))
-		{
-			NPC->Ability_LMB();
-		}
+	ACharacterBase* AICharacter = Cast<ACharacterBase>(AIController->GetPawn());
+	if (AICharacter)
+	{
+		AICharacter->Ability_LMB();
 	}
 
 	return EBTNodeResult::InProgress;

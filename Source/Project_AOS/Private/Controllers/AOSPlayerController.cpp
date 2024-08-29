@@ -52,7 +52,7 @@ void AAOSPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	DOREPLIFETIME(ThisClass, SelectedCharacterIndex);
 }
 
-void AAOSPlayerController::InitializeHUD_Implementation(const int CharacterIndex)
+void AAOSPlayerController::InitializeHUD_Implementation(const int InChampionIndex, const FName& InChampionName)
 {
 	FInputModeGameOnly InputModeGameOnly;
 	SetInputMode(InputModeGameOnly);
@@ -75,7 +75,7 @@ void AAOSPlayerController::InitializeHUD_Implementation(const int CharacterIndex
 				if (::IsValid(StatComponent) && ::IsValid(AbilityStatComponent) && ::IsValid(AOSPlayerState) && ::IsValid(AOSGameState))
 				{
 					HUDWidget->BindComponents(AOSGameState, AOSPlayerState, StatComponent, AbilityStatComponent);
-					HUDWidget->InitializeHUD(CharacterIndex);
+					HUDWidget->InitializeHUD(InChampionIndex, InChampionName);
 					HUDWidget->SetOwningActor(PlayerCharacter);
 				}
 			}
@@ -179,10 +179,7 @@ void AAOSPlayerController::InitializeItemShop_Implementation()
 
 void AAOSPlayerController::OnRep_PlayerInfoReplicated()
 {
-	if (SelectedCharacterIndex >= 0)
-	{
-		InitializeHUD(SelectedCharacterIndex);
-	}
+
 }
 
 void AAOSPlayerController::OnHUDBindingComplete_Implementation()
@@ -191,7 +188,7 @@ void AAOSPlayerController::OnHUDBindingComplete_Implementation()
 
 	if (AAOSGameMode* GM = Cast<AAOSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
 	{
-		InitialCharacterLevel = GM->InitialCharacterLevel;
+		InitialCharacterLevel = GM->GetInitialCharacterLevel();
 	}
 
 	AAOSCharacterBase* PlayerCharacter = GetPawn<AAOSCharacterBase>();
@@ -209,12 +206,6 @@ void AAOSPlayerController::OnHUDBindingComplete_Implementation()
 		UE_LOG(LogTemp, Warning, TEXT("[AAOSPlayerController::OnHUDBindingComplete] StatComponent or AbilityStatComponent is not valid"));
 		return;
 	}
-
-	/*PlayerCharacter->UpgradeAbility(EAbilityID::Ability_LMB, [&](int32 NewLevel)
-		{
-			AbilityStatComponent->InitializeAbility(EAbilityID::Ability_LMB, NewLevel);
-		}
-	);*/
 
 	AbilityStatComponent->InitializeAbility(EAbilityID::Ability_LMB, 1);
 	StatComponent->SetCurrentLevel(InitialCharacterLevel);

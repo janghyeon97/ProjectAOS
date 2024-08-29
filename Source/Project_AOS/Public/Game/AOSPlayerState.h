@@ -37,14 +37,17 @@ public:
 	ETeamSideBase GetTeamSide() const { return TeamSide; }
 	void SetTeamSide(ETeamSideBase NewTeamSide) { TeamSide = NewTeamSide; }
 
-	FString GetPlayerUniqueID() const;
-	void SetPlayerUniqueID(const FString& NewPlayerUniqueID) { PlayerUniqueID = NewPlayerUniqueID; }
+	FName GetPlayerUniqueID() const;
+	void SetPlayerUniqueID(const FName& NewPlayerUniqueID) { PlayerUniqueID = NewPlayerUniqueID; }
 
 	int32 GetPlayerIndex() const { return PlayerIndex; }
 	void SetPlayerIndex(int32 NewPlayerIndex) { PlayerIndex = NewPlayerIndex; }
 
 	int32 GetSelectedChampionIndex() const { return SelectedChampionIndex; }
 	void SetSelectedChampionIndex(int32 NewSelectedChampionIndex) { SelectedChampionIndex = NewSelectedChampionIndex; }
+
+	FName GetSelectedChampionName() const { return SelectedChampionName; }
+	void SetSelectedChampionName(const FName& NewSelectedChampionName) { SelectedChampionName = NewSelectedChampionName; }
 
 	int32 GetCurrency() const { return Currency; }
 	void SetCurrency(int32 NewCurrency) { Currency = NewCurrency; }
@@ -114,13 +117,16 @@ public:
 
 private:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	FString PlayerUniqueID;
+	FName PlayerUniqueID;
 
 	UPROPERTY(Replicated, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	int32 PlayerIndex;
 
 	UPROPERTY(Replicated, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	int32 SelectedChampionIndex;
+
+	UPROPERTY(Replicated, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	FName SelectedChampionName;
 
 private:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Player", meta = (AllowPrivateAccess = "true"))

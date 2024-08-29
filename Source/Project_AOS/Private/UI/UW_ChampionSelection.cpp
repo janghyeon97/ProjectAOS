@@ -15,9 +15,9 @@ void UUW_ChampionSelection::InitializeListEntry()
 	MaterialRef = ChampionImage->GetDynamicMaterial();
 }
 
-void UUW_ChampionSelection::UpdateChampionNameText(FString InString)
+void UUW_ChampionSelection::UpdateChampionNameText(const FName& InString)
 {
-	ChampionNameText->SetText(FText::FromString(InString));
+	ChampionNameText->SetText(FText::FromName(InString));
 }
 
 void UUW_ChampionSelection::UpdateChampionNameColor(FLinearColor InColor)
@@ -25,9 +25,9 @@ void UUW_ChampionSelection::UpdateChampionNameColor(FLinearColor InColor)
 	ChampionNameText->SetColorAndOpacity(InColor);
 }
 
-void UUW_ChampionSelection::UpdateChampionPositionText(FString InString)
+void UUW_ChampionSelection::UpdateChampionPositionText(const FName& InString)
 {
-	ChampionPositionText->SetText(FText::FromString(InString));
+	ChampionPositionText->SetText(FText::FromName(InString));
 }
 
 void UUW_ChampionSelection::UpdateChampionPositionColor(FLinearColor InColor)
@@ -35,9 +35,9 @@ void UUW_ChampionSelection::UpdateChampionPositionColor(FLinearColor InColor)
 	ChampionPositionText->SetColorAndOpacity(InColor);
 }
 
-void UUW_ChampionSelection::UpdatePlayerNameText(FString InString)
+void UUW_ChampionSelection::UpdatePlayerNameText(const FName& InString)
 {
-	PlayerNameText->SetText(FText::FromString(InString));
+	PlayerNameText->SetText(FText::FromName(InString));
 }
 
 void UUW_ChampionSelection::UpdatePlayerNameColor(FLinearColor InColor)

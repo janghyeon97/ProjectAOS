@@ -212,12 +212,13 @@ void ALobbyGameMode::SavePlayerData()
 			UPlayerStateSave* PlayerStateSave = NewObject<UPlayerStateSave>();
 			PlayerStateSave->TeamSide = LobbyPlayerState->TeamSide;
 			PlayerStateSave->SelectedChampionIndex = LobbyPlayerState->SelectedChampionIndex;
+			PlayerStateSave->SelectedChampionName = LobbyPlayerState->SelectedChampionName;
 			PlayerStateSave->PlayerIndex = LobbyPlayerState->PlayerIndex;
 			PlayerStateSave->PlayerUniqueID = LobbyPlayerState->PlayerUniqueID;
 
-			FString SaveSlotName = LobbyPlayerState->GetPlayerUniqueIdString();
-			UE_LOG(LogTemp, Warning, TEXT("[ALobbyGameMode::SavePlayerData] Save PlayerDate - %s %d %d"), *SaveSlotName, PlayerStateSave->PlayerIndex, PlayerStateSave->SelectedChampionIndex);
-			if (true == UGameplayStatics::SaveGameToSlot(PlayerStateSave, SaveSlotName, 0))
+			FName SaveSlotName = LobbyPlayerState->GetPlayerUniqueIdString();
+			UE_LOG(LogTemp, Warning, TEXT("[ALobbyGameMode::SavePlayerData] Save PlayerDate - %s %d %d"), *SaveSlotName.ToString(), PlayerStateSave->PlayerIndex, PlayerStateSave->SelectedChampionIndex);
+			if (true == UGameplayStatics::SaveGameToSlot(PlayerStateSave, SaveSlotName.ToString(), 0))
 			{
 				UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Saved.")));
 			}
@@ -232,12 +233,13 @@ void ALobbyGameMode::SavePlayerData()
 			UPlayerStateSave* PlayerStateSave = NewObject<UPlayerStateSave>();
 			PlayerStateSave->TeamSide = LobbyPlayerState->TeamSide;
 			PlayerStateSave->SelectedChampionIndex = LobbyPlayerState->SelectedChampionIndex;
+			PlayerStateSave->SelectedChampionName = LobbyPlayerState->SelectedChampionName;
 			PlayerStateSave->PlayerIndex = LobbyPlayerState->PlayerIndex;
 			PlayerStateSave->PlayerUniqueID = LobbyPlayerState->PlayerUniqueID;
 
-			const FString SaveSlotName = LobbyPlayerState->GetPlayerUniqueIdString();
-			UE_LOG(LogTemp, Warning, TEXT("[ALobbyGameMode::SavePlayerData] Save PlayerDate - %s %d %d"), *SaveSlotName, PlayerStateSave->PlayerIndex, PlayerStateSave->SelectedChampionIndex);
-			if (true == UGameplayStatics::SaveGameToSlot(PlayerStateSave, SaveSlotName, 0))
+			const FName SaveSlotName = LobbyPlayerState->GetPlayerUniqueIdString();
+			UE_LOG(LogTemp, Warning, TEXT("[ALobbyGameMode::SavePlayerData] Save PlayerDate - %s %d %d"), *SaveSlotName.ToString(), PlayerStateSave->PlayerIndex, PlayerStateSave->SelectedChampionIndex);
+			if (true == UGameplayStatics::SaveGameToSlot(PlayerStateSave, SaveSlotName.ToString(), 0))
 			{
 				UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Saved.")));
 			}

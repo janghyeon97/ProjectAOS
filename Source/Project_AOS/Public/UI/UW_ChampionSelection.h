@@ -19,15 +19,15 @@ public:
 
     void InitializeListEntry();
 
-    void UpdateChampionNameText(FString InString);
+    void UpdateChampionNameText(const FName& InString);
 
     void UpdateChampionNameColor(FLinearColor InColor);
 
-    void UpdateChampionPositionText(FString InString);
+    void UpdateChampionPositionText(const FName& InString);
 
     void UpdateChampionPositionColor(FLinearColor InColor);
     
-    void UpdatePlayerNameText(FString InString);
+    void UpdatePlayerNameText(const FName& InString);
 
     void UpdatePlayerNameColor(FLinearColor InColor);
 

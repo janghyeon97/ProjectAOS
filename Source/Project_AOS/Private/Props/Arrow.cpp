@@ -43,84 +43,91 @@ void AArrow::BeginPlay()
 
 void AArrow::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
 
+    
+}
+
+void AArrow::OnArrowHit(const FHitResult& HitResult)
+{
+    if (HasAuthority() && HitResult.GetActor() && HitResult.GetActor() != GetOwner())
+    {
+        AActor* OtherActor = HitResult.GetActor();
+        UPrimitiveComponent* OtherComp = HitResult.GetComponent();
+        ECollisionChannel CollisionChannel = OtherComp->GetCollisionObjectType();
+
+        // 캐릭터가 아닌 다른 물체에 맞은 경우 바로 충돌 처리
+        ProjectileMovement->StopMovementImmediately();
+        ProjectileMovement->ProjectileGravityScale = 0.0f;
+
+        FAttachmentTransformRules AttachmentRules(EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, true);
+        AttachToActor(OtherActor, AttachmentRules);
+
+        BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+        OnArrowHit_NetMulticast(CollisionChannel);
+        ACharacterBase* Character = Cast<ACharacterBase>(OtherActor);
+        switch (CollisionChannel)
+        {
+        case ECC_GameTraceChannel1: // AOSChampion
+        case ECC_GameTraceChannel6: // Minion
+            if (Character && OwnerCharacter->TeamSide != Character->TeamSide && OtherActor == TargetActor)
+            {
+                ApplyDamage(Character, 0.0f);
+            }
+            break;
+
+        default:
+            break;
+        }
+    }
 }
 
 void AArrow::OnArrowHit_NetMulticast_Implementation(ECollisionChannel CollisionChannel)
 {
-	if (HasAuthority() == false)
-	{
-		ProjectileMovement->StopMovementImmediately();
-		ProjectileMovement->ProjectileGravityScale = 0.0f;
+    if (HasAuthority() == false)
+    {
+        ProjectileMovement->StopMovementImmediately();
+        ProjectileMovement->ProjectileGravityScale = 0.0f;
 
-		BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		ArrowMesh->SetVisibility(false);
+        BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        ArrowMesh->SetVisibility(false);
 
-		switch (CollisionChannel)
-		{
-		case ECC_GameTraceChannel1: // AOSChampion
-			HitParticleSystem->Template = HitPlayer;
-			break;
+        UParticleSystem* SelectedParticleSystem = nullptr;
+        switch (CollisionChannel)
+        {
+        case ECC_GameTraceChannel1: // AOSChampion
+        case ECC_GameTraceChannel6: // Minion
+            SelectedParticleSystem = HitPlayer;
+            break;
 
-		default:
-			HitParticleSystem->Template = HitWorld;
-			break;
-		}
+        default:
+            SelectedParticleSystem = HitWorld;
+            break;
+        }
 
-		HitParticleSystem->Activate(true);
-		ArrowParticleSystem->Deactivate();
-	}
+        if (SelectedParticleSystem)
+        {
+            HitParticleSystem->SetTemplate(SelectedParticleSystem);
+            HitParticleSystem->Activate(true);
+        }
+
+        ArrowParticleSystem->Deactivate();
+    }
 }
 
 void AArrow::OnBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	Super::OnBeginOverlap(OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
+    Super::OnBeginOverlap(OverlappedComponent, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
 
-	if (HasAuthority())
-	{
-		if (OtherActor != GetOwner())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[Server] %s Overlap Actor %s "), *GetName(), *OtherActor->GetName());
-
-			ProjectileMovement->StopMovementImmediately();
-			ProjectileMovement->ProjectileGravityScale = 0.0f;
-
-			FAttachmentTransformRules AttachmentRules(EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, true);
-			AttachToActor(OtherActor, AttachmentRules);
-
-			BoxCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			ArrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-			ECollisionChannel CollisionChannel = OtherComp->GetCollisionObjectType();
-			OnArrowHit_NetMulticast(CollisionChannel);
-
-			switch (CollisionChannel)
-			{
-			case ECC_GameTraceChannel1: // AOSChampion
-			case ECC_GameTraceChannel6: // Minion
-				ACharacterBase* Character = Cast<ACharacterBase>(OtherActor);
-				if (::IsValid(Character) == false)
-				{
-					return;
-				}
-
-				if (OwnerCharacter->TeamSide != Character->TeamSide)
-				{
-					AttachToNearestEnemyMesh(SweepResult.ImpactPoint);
-					ApplyDamage(Character, 0.0f);
-				}
-				else
-				{
-					UE_LOG(LogTemp, Warning, TEXT("[AArrow::OnBeginOverlap] %s, Overlap Actor %s is same team."), *GetName(), *OtherActor->GetName());
-				}
-
-				break;
-			}
-		}
-	}
+    if (HasAuthority() && OtherActor != GetOwner())
+    {
+        OnArrowHit(SweepResult);
+    }
 }
+
 
 void AArrow::OnParticleEnded(UParticleSystemComponent* ParticleSystemComponent)
 {

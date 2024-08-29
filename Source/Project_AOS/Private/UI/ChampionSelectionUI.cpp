@@ -54,12 +54,12 @@ void UChampionSelectionUI::InitializeChampionList()
 	}
 
 	const auto& RowMap = AOSGameInstance->GetCampionsListTable()->GetRowMap();
-	for (int32 i = 1; i <= RowMap.Num(); i++)
+	for (auto& Row : RowMap)
 	{
-		const auto* Row = AOSGameInstance->GetCampionsListTableRow(i);
-		if (Row)
+		FChampionsListRow* RowData = reinterpret_cast<FChampionsListRow*>(Row.Value);
+		if (RowData)
 		{
-			AddChampionListEntry(Row->Index, Row->ChampionName, Row->ChampionImage);
+			AddChampionListEntry(RowData->Index, RowData->ChampionName, RowData->ChampionImage);
 		}
 	}
 }
@@ -79,12 +79,12 @@ void UChampionSelectionUI::InitializePlayerList()
 		ALobbyPlayerState* LobbyPlayerState = Cast<ALobbyPlayerState>(Player);
 		if (LobbyPlayerState)
 		{
-			AddPlayerSelection(LobbyPlayerState->TeamSide, Player->GetPlayerName());
+			AddPlayerSelection(LobbyPlayerState->TeamSide, FName(*Player->GetPlayerName()));
 		}
 	}
 }
 
-void UChampionSelectionUI::AddChampionListEntry(int32 Index, const FString& InChampionName, UTexture* Texture)
+void UChampionSelectionUI::AddChampionListEntry(int32 Index, const FName& InChampionName, UTexture* Texture)
 {
 	if (!ChampionListBox || !ChampionListEntryClass)
 	{
@@ -103,7 +103,7 @@ void UChampionSelectionUI::AddChampionListEntry(int32 Index, const FString& InCh
 	}
 }
 
-void UChampionSelectionUI::AddPlayerSelection(ETeamSideBase Team, const FString& InPlayerName)
+void UChampionSelectionUI::AddPlayerSelection(ETeamSideBase Team, const FName& InPlayerName)
 {
 	switch (Team)
 	{
@@ -122,7 +122,7 @@ void UChampionSelectionUI::AddPlayerSelection(ETeamSideBase Team, const FString&
 	}
 }
 
-void UChampionSelectionUI::AddPlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, TArray<TObjectPtr<UWidget>>& TeamWidgets, uint8& CurrentIndex, const FString& InPlayerName)
+void UChampionSelectionUI::AddPlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, TArray<TObjectPtr<UWidget>>& TeamWidgets, uint8& CurrentIndex, const FName& InPlayerName)
 {
 	uint8 Index = FMath::Clamp<uint8>(CurrentIndex + 2, 0, TeamWidgets.Num() - 1);
 
@@ -143,7 +143,7 @@ void UChampionSelectionUI::AddPlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSe
 	CurrentIndex = Index;
 }
 
-void UChampionSelectionUI::UpdatePlayerSelection(ETeamSideBase Team, const int32 PlayerIndex, const FString& InPlayerName, UTexture* Texture, const FString& InChampionName, const FString& InChampionPosition, FLinearColor Color, bool bShowChampionDetails)
+void UChampionSelectionUI::UpdatePlayerSelection(ETeamSideBase Team, const int32 PlayerIndex, const FName& InPlayerName, UTexture* Texture, const FName& InChampionName, const FName& InChampionPosition, FLinearColor Color, bool bShowChampionDetails)
 {
 	switch (Team)
 	{
@@ -158,7 +158,7 @@ void UChampionSelectionUI::UpdatePlayerSelection(ETeamSideBase Team, const int32
 	}
 }
 
-void UChampionSelectionUI::UpdatePlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, const int32 PlayerIndex, const FString& InPlayerName, UTexture* Texture, const FString& InChampionName, const FString& InChampionPosition, FLinearColor Color, bool bShowChampionDetails)
+void UChampionSelectionUI::UpdatePlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, const int32 PlayerIndex, const FName& InPlayerName, UTexture* Texture, const FName& InChampionName, const FName& InChampionPosition, FLinearColor Color, bool bShowChampionDetails)
 {
 	if (!TeamPlayers.IsValidIndex(PlayerIndex))
 	{

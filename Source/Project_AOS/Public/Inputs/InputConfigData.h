@@ -79,5 +79,8 @@ public:
 	TObjectPtr<class UInputAction> ToggleItemShop_Action;
 
 	UPROPERTY(EditAnyWhere, BlueprintReadOnly)
+	TObjectPtr<class UInputAction> Recall_Action;
+
+	UPROPERTY(EditAnyWhere, BlueprintReadOnly)
 	TObjectPtr<class UInputAction> CallAFunctionAction;
 };

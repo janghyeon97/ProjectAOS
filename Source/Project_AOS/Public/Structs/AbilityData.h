@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
+#include "Structs/EnumAbilityType.h"
 #include "AbilityData.generated.h"
 
 USTRUCT(BlueprintType)
@@ -53,6 +54,15 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MaxInstances;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EAbilityType AbilityType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EAbilityDetection AbilityDetection;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<EAbilityComponent> Components;
 };
 
 USTRUCT(BlueprintType)
@@ -149,6 +159,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FAbilityAttribute> UniqueAttributes;
 };
+
+USTRUCT(BlueprintType)
+struct FAbility
+{
+	GENERATED_BODY()
+
+public:
+	FAbility()
+	{
+
+	};
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FAbilityInformation AbilityInformation;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FAbilityStatTable> AbilityStatInformation;
+};
+
+
 
 /**
  * 

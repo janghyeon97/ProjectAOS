@@ -25,23 +25,12 @@ public:
 
 	virtual void SetWidget(class UUserWidgetBase* InUserWidgetBase) override;
 
-	virtual void GetCrowdControl(EBaseCrowdControl InCondition = EBaseCrowdControl::None, float InDuration = 0.f, float InPercent = 0.f) override;
-
 protected:
-	UFUNCTION()
-	virtual void Ability_Q() {};
-
-	UFUNCTION()
-	virtual void Ability_E() {};
-
-	UFUNCTION()
-	virtual void Ability_R() {};
-
-	UFUNCTION()
-	virtual void Ability_LMB() {};
-
-	UFUNCTION()
-	virtual void Ability_RMB() {};
+	virtual void Ability_Q() override {};
+	virtual void Ability_E() override {};
+	virtual void Ability_R() override {};
+	virtual void Ability_LMB() override {};
+	virtual void Ability_RMB() override {};
 
 	UFUNCTION()
 	virtual void MontageEnded(UAnimMontage* Montage, bool bIsInterrupt) {};
@@ -50,31 +39,8 @@ protected:
 	const FName GetAttackMontageSection(const int32& Section);
 
 protected:
-	/** Animinstance **/
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter")
-	TObjectPtr<class UNPCAnimInstance> AnimInstance;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter")
 	TObjectPtr<class ANPCAIController> AIController;
-
-	/**	 Animation Montages **/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Ability_Q_Montage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Ability_E_Montage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Ability_R_Montage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Ability_LMB_Montage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Ability_RMB_Montage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UAnimMontage> Stun_Montage;
 
 	/** NPC Wiget Components **/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "NonPlayerCharacter", Meta = (AllowPrivateAccess))

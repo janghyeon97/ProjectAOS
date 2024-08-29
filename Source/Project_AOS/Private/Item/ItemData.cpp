@@ -39,6 +39,11 @@ FItemInformation::FItemInformation()
     };
 }
 
+FItemInformation::~FItemInformation()
+{
+
+}
+
 FString FItemInformation::ClassificationToString() const
 {
     switch (Classification)

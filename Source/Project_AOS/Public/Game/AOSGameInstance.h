@@ -9,6 +9,9 @@
 #include "Structs/GameData.h"
 #include "Structs/AbilityData.h"
 #include "Structs/MinionData.h"
+#include "Structs/CharacterResources.h"
+#include "Structs/EnumCharacterType.h"
+#include "DataProviders/CharacterDataProviderBase.h" 
 #include "AOSGameInstance.generated.h"
 
 USTRUCT(BlueprintType)
@@ -27,10 +30,10 @@ public:
 	int32 Index;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString ChampionName;
+	FName ChampionName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FString Position;
+	FName Position;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UTexture* ChampionImage;
@@ -40,6 +43,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UDataTable* AbilityStatTable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UDataTable* CharacterResourcesTable;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UDataTable* SkinTable;
@@ -78,6 +84,9 @@ public:
 	float AttackDamage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float AbilityPower;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float DefensePower;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -94,25 +103,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FString, float> UniqueAttributes;
-};
-
-USTRUCT(BlueprintType)
-struct FAbility
-{
-	GENERATED_BODY()
-
-public:
-	FAbility()
-	{
-
-	};
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FAbilityInformation AbilityInformation;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<FAbilityStatTable> AbilityStatInformation;
 };
 
 USTRUCT(BlueprintType)
@@ -168,6 +158,7 @@ public:
 	USkeletalMesh* Mesh;
 };
 
+
 UCLASS()
 class PROJECT_AOS_API UAOSGameInstance : public UGameInstance
 {
@@ -179,24 +170,26 @@ public:
 	virtual void Init() override;
 	virtual void Shutdown() override;
 
-	const UDataTable* GetCampionsListTable();
-	FChampionsListRow* GetCampionsListTableRow(uint32 ChampionIndex);
+	void InitializeProvider(EObjectType ObjectType, UDataTable* DataTable);
 
-	const UDataTable* GetCharacterStatDataTable(uint32 CharacterIndex);
-	FStatTableRow* GetCharacterStat(uint32 CharacterIndex, uint32 InLevel);
-
-	const UDataTable* GetCharacterAbilityStatDataTable(uint32 CharacterIndex);
-	FAbility* GetCharacterAbilityStruct(uint32 CharacterIndex, EAbilityID AbilityID, uint32 InLevel);
-	FAbilityStatTable* GetCharacterAbilityStat(uint32 CharacterIndex, EAbilityID AbilityID, uint32 InLevel, uint8 InstanceIndex);
+	const UDataTable* GetCampionsListTable() const;
+	const FChampionsListRow* GetCampionsListTableRow(const FName& RowName) const;
 
 	const UDataTable* GetCharacterSkinDataTable();
 	FCharacterSkinTableRow* GetCharacterSkinDataTableRow(uint32 InLevel);
 
-	const UDataTable* GetMinionDataTable();
-	FMinionDataTableRow* GetMinionDataTableRow(EMinionType MinionType);
-	FStatTableRow* GetMinionStat(EMinionType MinionType);
+	const UDataTable* GetCharacterResourcesTable(const FName& RowName);
+	const TArray<FCharacterAnimationAttribute>& GetCharacterAnimMontages(const FName& RowName);
+	const TArray<FCharacterParticleEffectAttribute>& GetCharacterParticleEffects(const FName& RowName);
+	const TArray<FCharacterStaticMeshAttribute>& GetCharacterStaticMeshes(const FName& RowName);
 
+	const UDataTable* GetMinionDataTable();
 	const UDataTable* GetGameDataTable();
+
+	const UDataTable* GetSharedGamePlayParticlesDataTable();
+	FSharedGameplay* GetSharedGamePlayParticles();
+
+	UCharacterDataProviderBase* GetDataProvider(EObjectType ObjectType) const;
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
@@ -207,12 +200,6 @@ private:
 	class UDataTable* ChampionsList;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
-	class UDataTable* CharacterStatDataTable;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
-	class UDataTable* CharacterAbilityStatDataTable;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
 	class UDataTable* CharacterSkinTable;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
@@ -220,4 +207,19 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
 	class UDataTable* GameDataTable;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameInstance", Meta = (AllowPrivateAccess))
+	class UDataTable* SharedGamePlayParticlesDataTable;
+
+private:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DataProviders", meta = (AllowPrivateAccess = "true"))
+	TMap<EObjectType, UClass*> DataProviderClasses;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "DataProviders", meta = (AllowPrivateAccess = "true"))
+	mutable TMap<EObjectType, UCharacterDataProviderBase*> DataProviders;
+
+	// 빈 배열을 미리 정의하여 유효하지 않은 경우 반환할 수 있게 함
+	TArray<FCharacterAnimationAttribute> EmptyAnimationArray;
+	TArray<FCharacterParticleEffectAttribute> EmptyParticleArray;
+	TArray<FCharacterStaticMeshAttribute> EmptyMeshArray;
 };

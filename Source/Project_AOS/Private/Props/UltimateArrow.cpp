@@ -30,7 +30,7 @@ AUltimateArrow::AUltimateArrow()
 
 	HitParticleSystem->Template = HitWorld;
 
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 }
 
 void AUltimateArrow::BeginPlay()
@@ -132,6 +132,41 @@ void AUltimateArrow::HandleAOSCharacterCollision(AActor* OtherActor)
 
 		// Notify hit via multicast
 		OnArrowHit_NetMulticast(OtherActor, ECC_GameTraceChannel1);
+
+		FCollisionQueryParams params;
+		params.TraceTag = FName("Name_None");
+		params.bTraceComplex = false;
+		params.AddIgnoredActor(this);
+
+		OutHits.Empty();
+
+		bool bResult = GetWorld()->OverlapMultiByChannel(
+			OutHits,
+			GetActorLocation(),
+			FQuat::Identity,
+			ECC_GameTraceChannel3,
+			FCollisionShape::MakeSphere(ArrowProperties.Radius),
+			params
+		);
+
+		if (bResult)
+		{
+			for (const auto& OutHit : OutHits)
+			{
+				ACharacterBase* OverlapCharacter = Cast<ACharacterBase>(OutHit.GetActor());
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[Server] %s Overlap Actor %s "), *GetName(), *OverlapCharacter->GetName());
+
+					if (::IsValid(OverlapCharacter))
+					{
+						if (OverlapCharacter->TeamSide != OwnerCharacter->TeamSide)
+						{
+							ApplyDamage(OverlapCharacter, 0.0f);
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

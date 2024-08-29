@@ -7,6 +7,7 @@
 #include "Game/AOSGameMode.h"
 #include "Game/AOSGameState.h"
 #include "Game/AOSPlayerState.h"
+#include "Game/AOSGameInstance.h"
 
 // Input 관련 헤더 파일
 #include "EnhancedInputComponent.h"
@@ -50,6 +51,9 @@
 #include "Engine/PostProcessVolume.h"
 #include "EngineUtils.h"
 
+#include "DataProviders/CharacterDataProviderBase.h"
+#include "DataProviders/ChampionDataProvider.h"
+
 
 AAOSCharacterBase::AAOSCharacterBase()
 {
@@ -92,9 +96,9 @@ AAOSCharacterBase::AAOSCharacterBase()
 
 	GetCharacterMovement()->MaxWalkSpeed = 100.f;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
-	GetCharacterMovement()->JumpZVelocity = 600.f;
+	GetCharacterMovement()->JumpZVelocity = 400.f;
 	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->GravityScale = 1.6f;
+	GetCharacterMovement()->GravityScale = 1.0;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 
 	GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -123,10 +127,54 @@ AAOSCharacterBase::AAOSCharacterBase()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-void AAOSCharacterBase::InitializeAbilityParticles()
+void AAOSCharacterBase::InitializeCharacterResources()
 {
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> LEVELUP(TEXT("/Game/ParagonMinions/FX/Particles/SharedGameplay/States/LevelUp/P_LevelUp.P_LevelUp"));
-	if (LEVELUP.Succeeded()) LevelUpParticle = LEVELUP.Object;
+	UAOSGameInstance* GameInstance = Cast<UAOSGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+	if (!GameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("InitializeCharacterResources: Invalid GameInstance."));
+		return;
+	}
+
+	ICharacterDataProviderInterface* Provider = Cast<ICharacterDataProviderInterface>(GameInstance->GetDataProvider(EObjectType::Player));
+	if (!Provider)
+	{
+		UE_LOG(LogTemp, Error, TEXT("InitializeCharacterResources: Invalid DataProvider."));
+		return;
+	}
+
+	CharacterAnimations = Provider->GetCharacterMontagesMap(ChampionName);
+	CharacterParticles = Provider->GetCharacterParticlesMap(ChampionName);
+	CharacterMeshes = Provider->GetCharacterMeshesMap(ChampionName);
+
+	// SharedGamePlayParticlesMap가 비어 있는 경우에만 초기화
+	if (SharedGameplayParticles.Num() == 0)
+	{
+		const UDataTable* SharedGameplayTable = GameInstance->GetSharedGamePlayParticlesDataTable();
+		if (!SharedGameplayTable)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("SharedGameplayTable is null. Initialization aborted."));
+			return;
+		}
+
+		// 테이블의 모든 행을 반복합니다.
+		for (const auto& Row : SharedGameplayTable->GetRowMap())
+		{
+			const FSharedGameplay* RowData = reinterpret_cast<const FSharedGameplay*>(Row.Value);
+			if (RowData)
+			{
+				// 행 데이터의 모든 속성을 반복하여 맵에 추가합니다.
+				for (const auto& Attribute : RowData->SharedGameplayParticles)
+				{
+					if (!SharedGameplayParticles.Contains(Attribute.Key)) // 중복된 키를 피하기 위해 확인
+					{
+						SharedGameplayParticles.Add(Attribute.Key, Attribute.Value);
+					}
+				}
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("SharedGameplayParticles initialized with %d entries."), SharedGameplayParticles.Num());
+	}
 }
 
 void AAOSCharacterBase::Tick(float DeltaSeconds)
@@ -152,8 +200,6 @@ void AAOSCharacterBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME_CONDITION(ThisClass, RightInputValue, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ThisClass, CurrentAimPitch, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(ThisClass, CurrentAimYaw, COND_SkipOwner);
-	DOREPLIFETIME(ThisClass, CrowdControlState);
-	DOREPLIFETIME(ThisClass, bIsDead);
 }
 
 void AAOSCharacterBase::BeginPlay()	
@@ -174,16 +220,14 @@ void AAOSCharacterBase::BeginPlay()
 
 						StatComponent->OnCurrentLevelChanged.AddDynamic(AOSPlayerState, &AAOSPlayerState::OnPlayerLevelChanged);
 
-						if (AController* Controller = GetController())
-						{
-							AAOSPlayerController* PlayerController = Cast<AAOSPlayerController>(Controller);
-							if (::IsValid(PlayerController))
-							{
-								PlayerController->InitializeHUD(SelectedCharacterIndex);
-								PlayerController->InitializeItemShop();
-							}
-						}
+						UE_LOG(LogTemp, Warning, TEXT("[AAOSCharacterBase::BeginPlay] AOSPlayerState - StatComponent OnPlayerLevelChanged binding complete."));
 					}
+				}
+
+				AAOSPlayerController* PlayerController = Cast<AAOSPlayerController>(GetController());
+				if (::IsValid(PlayerController))
+				{
+					PlayerController->InitializeHUD(SelectedCharacterIndex, ChampionName);
 				}
 			}
 		));
@@ -201,74 +245,86 @@ void AAOSCharacterBase::BeginPlay()
 		// 크리티컬 히트 이벤트 바인딩
 		OnHitEventTriggered.AddDynamic(this, &ThisClass::ApplyCriticalHitDamage);
 	}
+	
+	GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			AAOSPlayerController* PlayerController = Cast<AAOSPlayerController>(GetController());
 
-	// 클라이언트에서 실행
-	if (!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerCharacter(this, 0))
-	{
-		GetWorld()->GetTimerManager().SetTimer(DistanceCheckTimerHandle, this, &ThisClass::CheckOutOfSight, 0.1f, true);
-
-		GetWorld()->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [&]()
+			// 클라이언트에서 실행 중인지, 그리고 로컬 플레이어의 컨트롤러인지 확인
+			if (!HasAuthority() && PlayerController && PlayerController == UGameplayStatics::GetPlayerController(GetWorld(), 0))
 			{
-				if (GetController())
-				{
-					AAOSPlayerController* PlayerController = Cast<AAOSPlayerController>(GetController());
-					if (::IsValid(PlayerController))
-					{
-						UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
-						if (::IsValid(Subsystem))
-						{
-							Subsystem->AddMappingContext(PlayerInputMappingContext, 0);
-						}
+				UE_LOG(LogTemp, Error, TEXT("This code is running on the client for the local player."));
 
+				// 주기적으로 실행할 타이머 설정
+				SetGameTimer(GameTimer, GameTimerIndex++, [this]() { CheckOutOfSight(); }, 0.1f, true);
+				SetGameTimer(GameTimer, GameTimerIndex++, [this]() { UpdateOverlayMaterial(); }, 0.1f, true);
+
+				// 입력 서브시스템에서 매핑 컨텍스트 추가
+				if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+				{
+					Subsystem->AddMappingContext(PlayerInputMappingContext, 0);
+				}
+
+				// 아이템 상점 초기화
+				PlayerController->InitializeItemShop();
+
+				// 월드 내 PostProcessVolume을 찾고 캐싱
+				for (TActorIterator<APostProcessVolume> It(GetWorld()); It; ++It)
+				{
+					if (It->bUnbound)
+					{
+						UE_LOG(LogTemp, Log, TEXT("[AAOSCharacterBase::BeginPlay] Found PostProcessVolume."));
+						PostProcessVolume = *It;
+						break;
 					}
 				}
 			}
-		));
-
-
-		// 월드 내 PostProcessVolume을 찾습니다.
-		for (TActorIterator<APostProcessVolume> It(GetWorld()); It; ++It)
-		{
-			if (It->bUnbound)
-			{
-				UE_LOG(LogTemp, Log, TEXT("[AAOSCharacterBase::BeginPlay] Found PostProcessVolume."));
-
-				PostProcessVolume = *It;
-				break;
-			}
-		}
-
-		
-	}
+		}));
 
 	// 애니메이션 인스턴스 설정
-	AnimInstance = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
-	if (::IsValid(AnimInstance))
+	UPlayerAnimInstance* PlayerAnimInstance = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
+	if (::IsValid(PlayerAnimInstance))
 	{
-		if (!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerCharacter(this, 0))
-		{
-			AnimInstance->OnEnableMoveNotifyBegin.BindUObject(this, &AAOSCharacterBase::EnableCharacterMove);
-			AnimInstance->OnEnableSwitchActionNotifyBegin.BindUObject(this, &AAOSCharacterBase::EnableSwitchAction);
-		}
+		AnimInstance = PlayerAnimInstance;
+
+		PlayerAnimInstance->OnEnableMoveNotifyBegin.BindUObject(this, &AAOSCharacterBase::EnableCharacterMove);
+		PlayerAnimInstance->OnEnableSwitchActionNotifyBegin.BindUObject(this, &AAOSCharacterBase::EnableSwitchAction);
+		PlayerAnimInstance->OnEnableGravityNotifyBegin.AddDynamic(this, &AAOSCharacterBase::EnableGravity);
+		PlayerAnimInstance->OnDisableGravityNotifyBegin.AddDynamic(this, &AAOSCharacterBase::DisableGravity);
 	}
 
-	// 게임 상태 설정
 	AOSGameState = Cast<AAOSGameState>(UGameplayStatics::GetGameState(this));
 	if (HasAuthority() && ::IsValid(AOSGameState))
 	{
 		// 필요한 게임 상태 초기화 코드 추가
 
 	}
-
-	// 캐릭터 이동 속도 설정
-	ChangeMovementSpeed(0, StatComponent->GetMovementSpeed());
 }
 
 void AAOSCharacterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	GetWorld()->GetTimerManager().ClearTimer(DistanceCheckTimerHandle);
+	// 모든 게임 타이머 해제
+	for (auto& Elem : GameTimer)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(Elem.Value);
+	}
+	GameTimer.Empty();
+
+	// 모든 능력 타이머 해제
+	for (auto& Elem : AbilityTimer)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(Elem.Value);
+	}
+	AbilityTimer.Empty();
+
+	// 모든 군중 제어 타이머 해제
+	for (auto& Elem : CrowdControlTimer)
+	{
+		GetWorld()->GetTimerManager().ClearTimer(Elem.Value);
+	}
+	CrowdControlTimer.Empty();
 }
 
 void AAOSCharacterBase::PossessedBy(AController* NewController)
@@ -282,15 +338,24 @@ void AAOSCharacterBase::PostInitializeComponents()
 
 	if (HasAuthority())
 	{
-		AbilityStatComponent->InitAbilityStatComponent(StatComponent, SelectedCharacterIndex);
-		StatComponent->InitializeStatComponent(SelectedCharacterIndex);
+		UAOSGameInstance* GameInstance = Cast<UAOSGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+		if (!GameInstance) return;
 
-		StatComponent->OnHPNotEqualsMaxHP.AddDynamic(this, &AAOSCharacterBase::HPRegenEverySecond_Server);
-		StatComponent->OnMPNotEqualsMaxMP.AddDynamic(this, &AAOSCharacterBase::MPRegenEverySecond_Server);
-		StatComponent->OnHPEqualsMaxHP.AddDynamic(this, &AAOSCharacterBase::ClearHPRegenTimer_Server);
-		StatComponent->OnMPEqualsMaxMP.AddDynamic(this, &AAOSCharacterBase::ClearMPRegenTimer_Server);
+		if (ICharacterDataProviderInterface* Provider = Cast<ICharacterDataProviderInterface>(GameInstance->GetDataProvider(EObjectType::Player)))
+		{
+			StatComponent->InitStatComponent(Provider, ChampionName);
+			AbilityStatComponent->InitAbilityStatComponent(Provider, StatComponent, ChampionName);
+
+			StatComponent->OnHPNotEqualsMaxHP.AddDynamic(this, &AAOSCharacterBase::HPRegenEverySecond_Server);
+			StatComponent->OnMPNotEqualsMaxMP.AddDynamic(this, &AAOSCharacterBase::MPRegenEverySecond_Server);
+			StatComponent->OnHPEqualsMaxHP.AddDynamic(this, &AAOSCharacterBase::ClearHPRegenTimer_Server);
+			StatComponent->OnMPEqualsMaxMP.AddDynamic(this, &AAOSCharacterBase::ClearMPRegenTimer_Server);
+
+			StatComponent->OnCurrentLevelChanged.AddDynamic(AbilityStatComponent, &UAbilityStatComponent::UpdateLevelUpUI_Server);
+		}
 	}
 }
+
 
 void AAOSCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -315,6 +380,7 @@ void AAOSCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 			EnhancedInputComponent->BindAction(PlayerCharacterInputConfigData->UseItem_6_Action, ETriggerEvent::Started, this, &AAOSCharacterBase::UseItemSlot6);
 
 			EnhancedInputComponent->BindAction(PlayerCharacterInputConfigData->ToggleItemShop_Action, ETriggerEvent::Started, this, &AAOSCharacterBase::ToggleItemShop);
+			EnhancedInputComponent->BindAction(PlayerCharacterInputConfigData->Recall_Action, ETriggerEvent::Started, this, &AAOSCharacterBase::Recall);
 		}));
 }
 
@@ -407,6 +473,27 @@ void AAOSCharacterBase::OnCtrlKeyPressed()
 void AAOSCharacterBase::OnCtrlKeyReleased()
 {
 	HandleCtrlKeyInput(false);
+}
+
+void AAOSCharacterBase::Recall()
+{
+	UCharacterMovementComponent* MovementComponent = GetCharacterMovement();
+	if (!MovementComponent)
+	{
+		return;
+	}
+
+	UAnimMontage* RecallMontage = GetOrLoadMontage("Recall", TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Recall_Montage.Recall_Montage"));
+	if (!RecallMontage)
+	{
+		return;
+	}
+
+	ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Move);
+	ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::Recall);
+	MovementComponent->StopMovementImmediately();
+	
+	PlayMontage_Server(RecallMontage, 1.0f, NAME_None);
 }
 
 void AAOSCharacterBase::UseItemSlot1_Implementation()
@@ -664,325 +751,7 @@ void AAOSCharacterBase::CheckOutOfSight()
 }
 
 
-
-
-
-//==================== Attack and Damage Functions ====================//
-
-/*
-	크리티컬 확률을 더 정확하게 반영하기 위해, 특정 횟수 안에 지정된 확률에 해당하는 횟수만큼 크리티컬이 발생하도록 보장합니다.
-	 - 기본 확률 유지		: 크리티컬 확률은 기본적으로 무작위로 계산되지만, 보정 로직을 추가하여 크리티컬이 지정된 확률에 맞게 발생하도록 조정합니다.
-	 - 확률 누적 및 보정	: 실패할 때마다 누적 확률을 증가시키고, 성공하면 초기화하여 실제 확률에 가깝도록 합니다.
-*/
-void AAOSCharacterBase::ApplyCriticalHitDamage(FDamageInfomation& DamageInfomation)
-{
-	// 기본 크리티컬 확률 (예: 0.25)
-	float CriticalChance = static_cast<float>(StatComponent->GetCriticalChance()) / 100;
-	if (CriticalChance <= 0)
-	{
-		return;
-	}
-
-	// 현재 공격에 대해 크리티컬 확률을 계산합니다.
-	float ExpectedCriticalHits = TotalAttacks * CriticalChance;
-	float ActualCriticalHits = static_cast<float>(CriticalHits);
-
-	// 보정 확률을 계산합니다.
-	float Adjustment = (ExpectedCriticalHits - ActualCriticalHits) / (TotalAttacks + 1);
-	float AdjustedCriticalChance = CriticalChance + Adjustment;
-
-	// 무작위 값을 생성하여 크리티컬 히트 여부를 결정합니다.
-	bool bIsCriticalHit = (FMath::FRand() <= AdjustedCriticalChance);
-
-	if (bIsCriticalHit)
-	{
-		CriticalHits++;
-
-		if (::IsValid(StatComponent))
-		{
-			float AttackDamage = StatComponent->GetAttackDamage();
-			DamageInfomation.AddDamage(EDamageType::Critical, AttackDamage * 0.7);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("AAOSCharacterBase::ApplyCriticalHitDamage - StatComponent is no vaild."));
-		}
-	}
-	TotalAttacks++;
-}
-
-/**
- * ApplyDamage_Server_Implementation
- *
- * 이 함수는 서버에서 호출되며, 지정된 적 캐릭터에게 데미지를 적용합니다.
- * Ability_LMB의 경우 기본 공격 판정으로 계산되며, 다른 능력은 스킬 판정으로 계산됩니다.
- * 블라인드 상태에서는 기본 공격이 실패합니다.
- * 적이 유효하면 해당 공격의 히트와 공격 이벤트를 트리거하고, 적에게 데미지를 적용합니다.
- *
- * @param Enemy 데미지를 받을 적 캐릭터입니다.
- * @param DamageInfomation 데미지 정보 구조체입니다.
- * @param EventInstigator 데미지 인스티게이터(주로 플레이어 컨트롤러)입니다.
- * @param DamageCauser 데미지를 일으킨 액터입니다.
- */
-void AAOSCharacterBase::ApplyDamage_Server_Implementation(ACharacterBase* Enemy, FDamageInfomation DamageInfomation, AController* EventInstigator, AActor* DamageCauser)
-{
-	if (!::IsValid(Enemy))
-	{
-		return;
-	}
-
-	if (DamageInfomation.AbilityID == EAbilityID::Ability_LMB)
-	{
-		// 실명 상태일 경우 기본 공격이 실패
-		if (EnumHasAnyFlags(CrowdControlState, EBaseCrowdControl::Blind))
-		{
-			// To do: 블라인드 상태 처리
-			return;
-		}
-	}
-
-	// 공격 적중 가능 여부 확인.
-	bool bResult = Enemy->ValidateHit(DamageInfomation.AbilityID);
-	if (!bResult)
-	{
-		return;
-	}
-
-	// OnHit 이벤트 처리
-	if (EnumHasAnyFlags(DamageInfomation.AttackEffect, EAttackEffect::OnHit) && OnHitEventTriggered.IsBound())
-	{
-		OnHitEventTriggered.Broadcast(DamageInfomation);
-	}
-
-	// OnAttack 이벤트 처리
-	if (EnumHasAnyFlags(DamageInfomation.AttackEffect, EAttackEffect::OnAttack) && OnAttackEventTriggered.IsBound())
-	{
-		OnAttackEventTriggered.Broadcast(DamageInfomation);
-	}
-
-	// AbilityEffects 이벤트 처리
-	if (EnumHasAnyFlags(DamageInfomation.AttackEffect, EAttackEffect::AbilityEffects) && OnAbilityEffectsEventTriggered.IsBound())
-	{
-		OnAbilityEffectsEventTriggered.Broadcast(DamageInfomation);
-	}
-
-	// 데미지 적용
-	Enemy->ReceiveDamage(DamageInfomation, EventInstigator, DamageCauser);
-
-	// 상태이상 이벤트 처리
-	if (DamageInfomation.CrowdControls.Num() > 0)
-	{
-		for (auto& CrowdControl : DamageInfomation.CrowdControls)
-		{
-			ApplayCrowdControl_Server(Enemy, CrowdControl.Type, CrowdControl.Duration, CrowdControl.Percent);
-		}
-	}
-}
-
-//==================== Crowd Control Functions ====================//
-
-/**
- * GetCrowdControl
- *
- * 이 함수는 지정된 군중 제어(Crowd Control) 조건을 적용합니다.
- * 각 군중 제어 조건은 이동 속도, 공격 속도, 스킬 사용, 시야 등에 영향을 미칩니다.
- * 적용된 군중 제어 조건은 일정 시간이 지난 후 자동으로 해제됩니다.
- *
- * @param InCondition 적용할 군중 제어 조건입니다.
- * @param InDuration 군중 제어가 적용되는 지속 시간입니다.
- * @param InPercent 군중 제어의 효과 강도를 나타내는 백분율입니다. (0.0 ~ 1.0)
- */
-void AAOSCharacterBase::GetCrowdControl(EBaseCrowdControl InCondition, float InDuration, float InPercent)
-{
-	float Percent = FMath::Clamp<float>(InPercent, 0.0f, 1.0f);
-
-	switch (InCondition)
-	{
-	case EBaseCrowdControl::None:
-		break;
-
-	case EBaseCrowdControl::Slow: // 이동속도 둔화
-		ApplyMovementSpeedDebuff(Percent, InDuration);
-		break;
-
-	case EBaseCrowdControl::Cripple: // 공격속도 둔화
-		ApplyAttackSpeedDebuff(Percent, InDuration);
-		break;
-
-	case EBaseCrowdControl::Silence: // 침묵 (스킬 사용 불가)
-		ApplySilenceDebuff(InDuration);
-		break;
-
-	case EBaseCrowdControl::Blind: // 실명 (기본 공격 빗나감)
-		ApplyBlindDebuff(InDuration);
-		break;
-
-	case EBaseCrowdControl::BlockedSight: // 시야 차단
-		break;
-
-	case EBaseCrowdControl::Snare: // 속박
-		ApplySnareDebuff(InDuration);
-		break;
-
-	case EBaseCrowdControl::Stun: // 기절
-		ApplyStunDebuff(InDuration);
-		break;
-
-	case EBaseCrowdControl::Taunt: // 도발
-		break;
-
-	default:
-		break;
-	}
-}
-
-void AAOSCharacterBase::ApplyMovementSpeedDebuff(float Percent, float Duration)
-{
-	LastMovementSpeed = StatComponent->GetMovementSpeed();
-
-	StatComponent->SetMovementSpeed(LastMovementSpeed * Percent);
-	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Slow);
-
-	auto TimerCallback = [this]()
-		{
-			StatComponent->SetMovementSpeed(LastMovementSpeed);
-			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Slow);
-		};
-
-	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Slow), TimerCallback, Duration, false, Duration);
-}
-
-void AAOSCharacterBase::ApplyAttackSpeedDebuff(float Percent, float Duration)
-{
-	LastAttackSpeed = StatComponent->GetAttackSpeed();
-	StatComponent->SetAttackSpeed(LastAttackSpeed * (1 - Percent));
-	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Cripple);
-
-	auto TimerCallback = [this]()
-		{
-			StatComponent->SetAttackSpeed(LastAttackSpeed);
-			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Cripple);
-		};
-
-	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Cripple), TimerCallback, Duration, false, Duration);
-}
-
-void AAOSCharacterBase::ApplySilenceDebuff(float Duration)
-{
-	AbilityStatComponent->BanUseAbilityFewSeconds(Duration);
-	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Silence);
-
-	auto TimerCallback = [this]()
-		{
-			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Silence);
-		};
-
-	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Silence), TimerCallback, Duration, false, Duration);
-}
-
-void AAOSCharacterBase::ApplyBlindDebuff(float Duration)
-{
-	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Blind);
-
-	auto TimerCallback = [this]()
-		{
-			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Blind);
-		};
-
-	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Blind), TimerCallback, Duration, false, Duration);
-}
-
-void AAOSCharacterBase::ApplySnareDebuff(float Duration)
-{
-	EnumAddFlags(CrowdControlState, EBaseCrowdControl::Snare);
-	EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
-
-	auto TimerCallback = [this]()
-		{
-			EnumRemoveFlags(CrowdControlState, EBaseCrowdControl::Snare);
-			EnumAddFlags(CharacterState, EBaseCharacterState::Move);
-		};
-
-	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Blind), TimerCallback, Duration, false, Duration);
-}
-
-void AAOSCharacterBase::ApplyStunDebuff(float Duration)
-{
-	if (::IsValid(AnimInstance))
-	{
-		AnimInstance->StopAllMontages(0.1f);
-		AnimInstance->PlayMontage(Stun_Montage, 1.0f);
-	}
-
-	AbilityStatComponent->BanUseAbilityFewSeconds(Duration);
-	EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
-
-	auto TimerCallback = [this]()
-		{
-			EnumAddFlags(CharacterState, EBaseCharacterState::Move);
-			if (::IsValid(AnimInstance))
-			{
-				AnimInstance->StopAllMontages(0.3f);
-			}
-		};
-
-	SetGameTimer(CrowdControlTimer, static_cast<uint32>(EBaseCrowdControl::Blind), TimerCallback, Duration, false, Duration);
-}
-
-
-
-void AAOSCharacterBase::ApplayCrowdControl_Server_Implementation(ACharacterBase* Enemy, EBaseCrowdControl InCondition, float InDuration, float InPercent)
-{
-	if (HasAuthority())
-	{
-		Enemy->GetCrowdControl(InCondition, InDuration, InPercent);
-		//ApplayCrowdControl_NetMulticast(Enemy, InCondition, InDuration, InPercent);
-	}
-}
-
-void AAOSCharacterBase::ApplayCrowdControl_NetMulticast_Implementation(ACharacterBase* Enemy, EBaseCrowdControl InCondition, float InDuration, float InPercent)
-{
-	if (::IsValid(Enemy))
-	{
-		Enemy->GetCrowdControl(InCondition, InDuration, InPercent);
-	}
-}
-
 //==================== Particle Functions ====================//
-
-void AAOSCharacterBase::SpawnRootedParticleAtLocation_Server_Implementation(UParticleSystem* Particle, FTransform Transform)
-{
-	if (HasAuthority())
-	{
-		SpawnRootedParticleAtLocation_Multicast(Particle, Transform);
-	}
-}
-
-void AAOSCharacterBase::SpawnRootedParticleAtLocation_Multicast_Implementation(UParticleSystem* Particle, FTransform Transform)
-{
-	if (!HasAuthority())
-	{
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), Particle, Transform.GetLocation(), Transform.GetRotation().Rotator(), Transform.GetScale3D(), true, EPSCPoolMethod::None, true);
-	}
-}
-
-void AAOSCharacterBase::SpawnAttachedParticleAtLocation_Server_Implementation(UParticleSystem* Particle, FTransform Transform)
-{
-	if (HasAuthority())
-	{
-		SpawnAttachedParticleAtLocation_Multicast(Particle, Transform);
-	}
-}
-
-void AAOSCharacterBase::SpawnAttachedParticleAtLocation_Multicast_Implementation(UParticleSystem* Particle, FTransform Transform)
-{
-	if (!HasAuthority())
-	{
-		UGameplayStatics::SpawnEmitterAttached(
-			Particle, GetMesh(), "Name_None", Transform.GetLocation(), Transform.GetRotation().Rotator(), Transform.GetScale3D(), EAttachLocation::KeepWorldPosition, true, EPSCPoolMethod::None, true
-		);
-	}
-}
 
 void AAOSCharacterBase::SpawnLevelUpParticle(int32 OldLevel, int32 NewLevel)
 {
@@ -991,80 +760,11 @@ void AAOSCharacterBase::SpawnLevelUpParticle(int32 OldLevel, int32 NewLevel)
 		return;
 	}
 
-	if (!::IsValid(LevelUpParticle))
+	UParticleSystem* Particle = GetOrLoadSharedParticle("LevelUp", TEXT("/Game/ParagonMinions/FX/Particles/SharedGameplay/States/LevelUp/P_LevelUp.P_LevelUp"));
+	if (Particle)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[AAOSCharacterBase::SpawnLevelUpParticle] LevelUpParticle is invalid."));
-		return;
-	}
-
-	LastCharacterLocation = GetActorLocation() - FVector(0, 0, 75.f);
-	SpawnRootedParticleAtLocation_Server(LevelUpParticle, FTransform(FRotator(1), LastCharacterLocation, FVector(1)));
-}
-
-
-//==================== Mesh Functions ====================//
-
-void AAOSCharacterBase::SpawnAttachedMeshAtLocation_Server_Implementation(UStaticMesh* MeshToSpawn, FVector Location, float Duration)
-{
-	if (HasAuthority())
-	{
-		SpawnAttachedMeshAtLocation_Multicast(MeshToSpawn, Location, Duration);
-	}
-}
-
-void AAOSCharacterBase::SpawnAttachedMeshAtLocation_Multicast_Implementation(UStaticMesh* MeshToSpawn, FVector Location, float Duration)
-{
-	if (!HasAuthority() && ::IsValid(MeshToSpawn))
-	{
-		FTimerHandle NewTimerHandle;
-
-		UStaticMeshComponent* NewMeshComponent = NewObject<UStaticMeshComponent>(this, UStaticMeshComponent::StaticClass());
-		if (::IsValid(NewMeshComponent))
-		{
-			FAttachmentTransformRules AttachmentRules(EAttachmentRule::KeepRelative, false);
-
-			NewMeshComponent->RegisterComponent();
-			NewMeshComponent->AttachToComponent(GetRootComponent(), AttachmentRules);
-			NewMeshComponent->CreationMethod = EComponentCreationMethod::Instance;
-			NewMeshComponent->SetStaticMesh(MeshToSpawn);
-			NewMeshComponent->SetCollisionProfileName("CharacterMesh");
-
-			GetWorldTimerManager().SetTimer(
-				NewTimerHandle,
-				[MeshComponent = NewMeshComponent]()
-				{
-					if (MeshComponent)
-					{
-						MeshComponent->DestroyComponent();
-					}
-				},
-				Duration,
-				false
-			);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to create new mesh component."));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Invalid MeshToSpawn or unauthorized access."));
-	}
-}
-
-//==================== Actor Functions ====================//
-
-void AAOSCharacterBase::SpawnActorAtLocation_Server_Implementation(UClass* SpawnActor, FTransform SpawnTransform)
-{
-	if (HasAuthority())
-	{
-		if (!SpawnActor)
-		{
-			return;
-		}
-
-		GetWorld()->SpawnActor<AActor>(SpawnActor, SpawnTransform);
+		LastCharacterLocation = GetActorLocation() - FVector(0, 0, 75.f);
+		SpawnRootedParticleAtLocation_Server(Particle, FTransform(FRotator(1), LastCharacterLocation, FVector(1)));
 	}
 }
 
@@ -1087,66 +787,6 @@ void AAOSCharacterBase::UpdateAimValue_Server_Implementation(const float& InAimP
 	CurrentAimPitch = InAimPitchValue;
 }
 
-void AAOSCharacterBase::StopAllMontages_Server_Implementation(float BlendOut)
-{
-	StopAllMontages_NetMulticast(BlendOut);
-}
-
-void AAOSCharacterBase::StopAllMontages_NetMulticast_Implementation(float BlendOut)
-{
-	if ((!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerController(this, 0)) || IsLocallyControlled())
-	{
-		return;
-	}
-
-	if (::IsValid(AnimInstance) == false)
-	{
-		return;
-	}
-
-	AnimInstance->StopAllMontages(BlendOut);
-}
-
-void AAOSCharacterBase::PlayMontage_Server_Implementation(UAnimMontage* Montage, float PlayRate)
-{
-	PlayMontage_NetMulticast(Montage, PlayRate);
-}
-
-void AAOSCharacterBase::PlayMontage_NetMulticast_Implementation(UAnimMontage* Montage, float PlayRate)
-{
-	if ((!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerController(this, 0)) || IsLocallyControlled())
-	{
-		return;
-	}
-
-	if (::IsValid(AnimInstance) == false || ::IsValid(Montage) == false)
-	{
-		return;
-	}
-
-	AnimInstance->PlayMontage(Montage, PlayRate);
-}
-
-void AAOSCharacterBase::MontageJumpToSection_Server_Implementation(UAnimMontage* Montage, FName SectionName, float PlayRate)
-{
-	MontageJumpToSection_NetMulticast(Montage, SectionName, PlayRate);
-}
-
-void AAOSCharacterBase::MontageJumpToSection_NetMulticast_Implementation(UAnimMontage* Montage, FName SectionName, float PlayRate)
-{
-	if ((!HasAuthority() && GetOwner() == UGameplayStatics::GetPlayerController(this, 0)) || IsLocallyControlled())
-	{
-		return;
-	}
-
-	if (::IsValid(AnimInstance) == false || ::IsValid(Montage) == false)
-	{
-		return;
-	}
-
-	AnimInstance->Montage_SetPlayRate(Montage, PlayRate);
-	AnimInstance->Montage_JumpToSection(SectionName, Montage);
-}
 
 //==================== HP/MP Regeneration Functions ====================//
 
@@ -1164,12 +804,8 @@ void AAOSCharacterBase::HPRegenEverySecond_Server_Implementation()
 					return;
 				}
 
-				float MaxHP = StatComponent->GetMaxHP();
-				float CurrentHP = StatComponent->GetCurrentHP();
 				float HPRegeneration = StatComponent->GetHealthRegeneration();
-
-				float ClampHP = FMath::Clamp<float>(CurrentHP + HPRegeneration, 0.f, MaxHP);
-				StatComponent->SetCurrentHP(ClampHP);
+				StatComponent->ModifyCurrentHP(HPRegeneration);
 			}),
 		1.0f,
 		true,
@@ -1190,13 +826,8 @@ void AAOSCharacterBase::MPRegenEverySecond_Server_Implementation()
 					UE_LOG(LogTemp, Error, TEXT("[MPRegenEverySecond_Server] StatComponentis null."));
 					return;
 				}
-
-				float CurrentMP = StatComponent->GetCurrentMP();
-				float MaxMP = StatComponent->GetMaxMP();
 				float MPRegeneration = StatComponent->GetManaRegeneration();
-
-				float ClampMP = FMath::Clamp<float>(CurrentMP + MPRegeneration, 0.f, MaxMP);
-				StatComponent->SetCurrentMP(ClampMP);
+				StatComponent->ModifyCurrentMP(MPRegeneration);
 			}),
 		1.0f,
 		true,
@@ -1218,17 +849,17 @@ void AAOSCharacterBase::ClearMPRegenTimer_Server_Implementation()
 
 void AAOSCharacterBase::DecreaseHP_Server_Implementation()
 {
-	StatComponent->SetCurrentHP(StatComponent->GetCurrentHP() - 100.f);
+	StatComponent->ModifyCurrentHP(-100.f);
 }
 
 void AAOSCharacterBase::DecreaseMP_Server_Implementation()
 {
-	StatComponent->SetCurrentMP(StatComponent->GetCurrentMP() - 100.f);
+	StatComponent->ModifyCurrentMP(-100.f);
 }
 
 void AAOSCharacterBase::IncreaseEXP_Server_Implementation()
 {
-	StatComponent->SetCurrentEXP(StatComponent->GetCurrentEXP() + 20);
+	StatComponent->ModifyCurrentEXP(20);
 }
 
 void AAOSCharacterBase::IncreaseLevel_Server_Implementation()
@@ -1238,12 +869,12 @@ void AAOSCharacterBase::IncreaseLevel_Server_Implementation()
 
 void AAOSCharacterBase::IncreaseCriticalChance_Server_Implementation()
 {
-	StatComponent->SetCriticalChance(StatComponent->GetCriticalChance() + 5);
+	StatComponent->ModifyAccumulatedFlatCriticalChance(5);
 }
 
 void AAOSCharacterBase::IncreaseAttackSpeed_Server_Implementation()
 {
-	StatComponent->SetAttackSpeed(StatComponent->GetAttackSpeed() + 0.15f);
+	StatComponent->ModifyAccumulatedPercentAttackSpeed(50.f);
 }
 
 void AAOSCharacterBase::ChangeTeamSide_Server_Implementation(ETeamSideBase InTeamSide)
@@ -1263,11 +894,36 @@ void AAOSCharacterBase::OnCharacterDeath()
 {
 	UE_LOG(LogTemp, Log, TEXT("[AAOSCharacterBase::OnCharacterDeath] Calling OnCharacterDeath Function."));
 
+	bool bIsDeathInProgress = true;
+	if (OnPreDeathEvent.IsBound())
+	{
+		OnPreDeathEvent.Broadcast(bIsDeathInProgress);
+	}
+
+	if (!bIsDeathInProgress)
+	{
+		return;
+	}
+
 	if (AAOSGameMode* GM = Cast<AAOSGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
 	{
 		if (AAOSPlayerController* AOSPlayerController = Cast<AAOSPlayerController>(GetController()))
 		{
 			GM->RequestRespawn(AOSPlayerController);
+		}
+	}
+
+	UParticleSystem* DeathParticle = nullptr;
+	if (UAOSGameInstance* GameInstance = Cast<UAOSGameInstance>(UGameplayStatics::GetGameInstance(GetWorld())))
+	{
+		const FSharedGameplay* SharedGamePlayDataTable = GameInstance->GetSharedGamePlayParticles();
+		if (!SharedGamePlayDataTable)
+		{
+			DeathParticle = Cast<UParticleSystem>(StaticLoadObject(UParticleSystem::StaticClass(), NULL, TEXT("/Game/ParagonMinions/FX/Particles/SharedGameplay/States/Death/FX/P_Death_Buff.P_Death_Buff")));
+		}
+		else
+		{
+			DeathParticle = SharedGamePlayDataTable->GetSharedGamePlayParticle(TEXT("Death_Default"));
 		}
 	}
 
@@ -1299,19 +955,18 @@ void AAOSCharacterBase::OnCharacterDeath()
 	SetActorTickEnabled(false);
 	ActivatePostProcessEffect_Client();
 
-	if (!::IsValid(AnimInstance) || !::IsValid(Death_Montage))
-	{
-		SetActorHiddenInGame(true);
-		return;
-	}
+	UAnimMontage* Montage = GetOrLoadMontage("Death", TEXT(""));
+	if (PlayAnimMontage(Montage) <= 0) SetActorHiddenInGame(true);
+	if (DeathParticle) SpawnRootedParticleAtLocation_Server(DeathParticle, FTransform(FRotator(0), GetActorLocation(), FVector(1)));
 
-	AnimInstance->PlayMontage(Death_Montage, 1.0f);
 }
 
 void AAOSCharacterBase::ActivatePostProcessEffect_Client_Implementation()
 {
 	/*CameraComponent->PostProcessSettings.ColorSaturation = FVector4(0, 0, 0, 1);
 	CameraComponent->PostProcessSettings.ColorGamma = FVector4(1, 1, 1, 0.8f);*/
+
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	if (PostProcessVolume)
 	{
@@ -1357,6 +1012,22 @@ void AAOSCharacterBase::DeActivatePostProcessEffect_Client_Implementation()
 		PostProcessVolume->Settings.bOverride_ColorGamma = true;
 		PostProcessVolume->Settings.ColorGamma = FVector4(1.0f, 1.0f, 1.0f, 1.0f); 
 	}
+
+	while (!DamageWidgetQueue.IsEmpty())
+	{
+		UWidgetComponent* DamageWidgetComponent = nullptr;
+
+		// 큐에서 위젯 컴포넌트를 꺼내 제거
+		if (DamageWidgetQueue.Dequeue(DamageWidgetComponent))
+		{
+			if (DamageWidgetComponent)
+			{
+				DamageWidgetComponent->DestroyComponent();
+			}
+		}
+	}
+
+	DamageWidgetQueue.Empty();
 }
 
 void AAOSCharacterBase::Respawn()
@@ -1380,54 +1051,50 @@ void AAOSCharacterBase::Respawn()
 	StatComponent->OnHPNotEqualsMaxHP.AddDynamic(this, &AAOSCharacterBase::HPRegenEverySecond_Server);
 	StatComponent->OnMPNotEqualsMaxMP.AddDynamic(this, &AAOSCharacterBase::MPRegenEverySecond_Server);
 
-	StatComponent->SetCurrentHP(StatComponent->GetMaxHP());
-	StatComponent->SetCurrentMP(StatComponent->GetMaxMP());
+	StatComponent->ModifyCurrentHP(StatComponent->GetMaxHP());
+	StatComponent->ModifyCurrentMP(StatComponent->GetMaxMP());
 
 	DeActivatePostProcessEffect_Client();
 }
 
-float AAOSCharacterBase::SetAnimPlayRate(const float AnimLength)
-{
-	if (!::IsValid(StatComponent))
-	{
-		UE_LOG(LogTemp, Error, TEXT("SetAnimPlayRate: StatComponent is null."));
-		return 1.0f; // 기본 재생 속도 반환
-	}
-
-	float CurrentAttackSpeed = StatComponent->GetAttackSpeed();
-	float AttackIntervalTime = 1.0f / CurrentAttackSpeed;
-
-	// 애니메이션 재생 속도 계산
-	float PlayRate = (AttackIntervalTime < AnimLength) ? (AnimLength / AttackIntervalTime) : 1.0f;
-
-	// 최소 및 최대 재생 속도 제한
-	const float MinPlayRate = 0.5f;
-	const float MaxPlayRate = 2.0f;
-	PlayRate = FMath::Clamp(PlayRate, MinPlayRate, MaxPlayRate);
-
-	return PlayRate;
-}
-
 //==================== Character Control Functions ====================//
 
-void AAOSCharacterBase::EnableCharacterMove_Implementation()
+void AAOSCharacterBase::EnableCharacterMove()
 {
-	EnumAddFlags(CharacterState, EBaseCharacterState::Move);
-	UpdateCharacterState(static_cast<uint32>(CharacterState));
-	LogCharacterState(CharacterState, TEXT("AAOSCharacterBase::EnableCharacterMove"));
+	ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::Move);
 }
 
-void AAOSCharacterBase::EnableSwitchAction_Implementation()
+void AAOSCharacterBase::EnableSwitchAction()
 {
-	EnumAddFlags(CharacterState, EBaseCharacterState::SwitchAction);
-	UpdateCharacterState(static_cast<uint32>(CharacterState));
-	LogCharacterState(CharacterState, TEXT("AAOSCharacterBase::EnableSwitchAction"));
+	ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::SwitchAction);
 }
 
 
 void AAOSCharacterBase::EnableUseControllerRotationYaw()
 {
 	bUseControllerRotationYaw = true;
+}
+
+void AAOSCharacterBase::EnableGravity()
+{
+	UCharacterMovementComponent* CharacterMovementComp = GetCharacterMovement();
+	if (!CharacterMovementComp)
+	{
+		return;
+	}
+
+	CharacterMovementComp->GravityScale = 1.0;
+}
+
+void AAOSCharacterBase::DisableGravity()
+{
+	UCharacterMovementComponent* CharacterMovementComp = GetCharacterMovement();
+	if (!CharacterMovementComp)
+	{
+		return;
+	}
+
+	CharacterMovementComp->GravityScale = 0;
 }
 
 //==================== Utility Functions ====================//
@@ -1448,46 +1115,12 @@ void AAOSCharacterBase::SaveCharacterTransform()
 	LastUpVector = GetActorUpVector();
 }
 
-void AAOSCharacterBase::RegisterAbilityStage(EAbilityID AbilityID, int32 Stage, FAbilityStageFunction AbilityFunction)
-{
-	if (!AbilityStageMap.Contains(AbilityID))
-	{
-		AbilityStageMap.Add(AbilityID, TMap<int32, TArray<FAbilityStageFunction>>());
-	}
-
-	if (!AbilityStageMap[AbilityID].Contains(Stage))
-	{
-		AbilityStageMap[AbilityID].Add(Stage, TArray<FAbilityStageFunction>());
-	}
-
-	AbilityStageMap[AbilityID][Stage].Add(AbilityFunction);
-}
-
-void AAOSCharacterBase::ExecuteAbilityStages(EAbilityID AbilityID)
-{
-	if (AbilityStageMap.Contains(AbilityID))
-	{
-		// 스테이지 번호를 오름차순으로 정렬하여 순서대로 실행
-		TMap<int32, TArray<FAbilityStageFunction>>& StagesMap = AbilityStageMap[AbilityID];
-		TArray<int32> Stages;
-		StagesMap.GetKeys(Stages);
-		Stages.Sort();
-
-		for (int32 Stage : Stages)
-		{
-			for (FAbilityStageFunction& Function : StagesMap[Stage])
-			{
-				Function.ExecuteIfBound();
-			}
-		}
-	}
-}
-
 void AAOSCharacterBase::SetGameTimer(TMap<int32, FTimerHandle>& Timers, int32 TimerID, TFunction<void()> Callback, float Duration, bool bLoop, float FirstDelay)
 {
 	FTimerHandle& TimerHandle = Timers.FindOrAdd(TimerID);
 	FTimerDelegate TimerDelegate = FTimerDelegate::CreateLambda(Callback);
 	GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, Duration, bLoop, FirstDelay);
+	UE_LOG(LogTemp, Log, TEXT("SetGameTimer called with TimerID: %d, Duration: %f, Loop: %s"), TimerID, Duration, bLoop ? TEXT("true") : TEXT("false"));
 }
 
 void AAOSCharacterBase::ClearGameTimer(TMap<int32, FTimerHandle>& Timers, int32 TimerID)
@@ -1500,13 +1133,175 @@ void AAOSCharacterBase::ClearGameTimer(TMap<int32, FTimerHandle>& Timers, int32 
 	}
 }
 
-void AAOSCharacterBase::ServerNotifyAbilityUse_Implementation(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
+bool AAOSCharacterBase::IsGameTimerActive(TMap<int32, FTimerHandle>& Timers, const int32 ItemID) const
 {
-
+	const FTimerHandle* TimerHandle = Timers.Find(ItemID);
+	return TimerHandle && GetWorld()->GetTimerManager().IsTimerActive(*TimerHandle);
 }
+
 
 void AAOSCharacterBase::OnRep_CharacterStateChanged()
 {
 	Super::OnRep_CharacterStateChanged();
 
+}
+
+void AAOSCharacterBase::ServerNotifyAbilityUse_Implementation(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
+{
+	OnAbilityUse(AbilityID, TriggerEvent);
+}
+
+void AAOSCharacterBase::OnAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
+{
+}
+
+
+void AAOSCharacterBase::DisableJump()
+{
+	if (EnhancedInputComponent)
+	{
+		EnhancedInputComponent->RemoveActionBinding("Jump", EInputEvent::IE_Pressed);
+	}
+}
+
+void AAOSCharacterBase::EnableJump()
+{
+	if (EnhancedInputComponent)
+	{
+		EnhancedInputComponent->BindAction(PlayerCharacterInputConfigData->JumpAction, ETriggerEvent::Started, this, &AAOSCharacterBase::Jump);
+	}
+}
+
+/**
+ * 카메라의 전방 벡터와 추적 범위를 기반으로 충돌 지점을 계산합니다.
+ * 이 함수는 카메라 위치에서 추적 범위로 정의된 지점까지 라인 트레이스를 수행합니다.
+ * 만약 라인 트레이스가 물체와 충돌하면, 충돌 지점을 충돌 위치로 업데이트합니다.
+ *
+ * @param TraceRange 추적이 충돌을 확인해야 하는 최대 거리입니다.
+ * @return 충돌 여부와 계산된 충돌 지점을 포함한 FImpactResult 구조체입니다.
+ */
+FImpactResult AAOSCharacterBase::GetImpactPoint(const float TraceRange)
+{
+	APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0);
+
+	FImpactResult ImpactResult;
+
+	if (IsValid(CameraManager) == false)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CameraManager is null."));
+		return ImpactResult;
+	}
+
+	FVector CameraLocation = CameraManager->GetCameraLocation();
+	FVector EndPoint = CameraLocation + CameraManager->GetActorForwardVector() * (TraceRange > 0 ? TraceRange : 1000.f);
+
+	FCollisionQueryParams params(NAME_None, false, this);
+	bool bResult = GetWorld()->LineTraceSingleByChannel(
+		ImpactResult.HitResult,
+		CameraLocation,
+		EndPoint,
+		ECollisionChannel::ECC_Visibility,
+		params
+	);
+
+	ImpactResult.bHit = bResult;
+	ImpactResult.ImpactPoint = bResult ? ImpactResult.HitResult.Location : EndPoint;
+
+	DrawDebugSphere(GetWorld(), ImpactResult.ImpactPoint, 10.0f, 12, bResult ? FColor::Red : FColor::Green, false, -1.0f);
+
+	return ImpactResult;
+}
+
+FImpactResult AAOSCharacterBase::GetSweepImpactPoint(const float TraceRange)
+{
+	APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0);
+
+	FImpactResult ImpactResult;
+
+	if (!IsValid(CameraManager))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CameraManager is null."));
+		return ImpactResult;
+	}
+
+	FVector CameraLocation = CameraManager->GetCameraLocation();
+	FVector EndPoint = CameraLocation + CameraManager->GetActorForwardVector() * (TraceRange > 0 ? TraceRange : 1000.f);
+
+	FCollisionQueryParams Params(NAME_None, false, this);
+	FCollisionShape CollisionShape = FCollisionShape::MakeSphere(50.0f);  // 설정 가능한 반지름
+
+	bool bResult = GetWorld()->SweepSingleByChannel(
+		ImpactResult.HitResult,
+		CameraLocation,
+		EndPoint,
+		FQuat::Identity,
+		ECollisionChannel::ECC_Visibility,
+		CollisionShape,
+		Params
+	);
+
+	ImpactResult.bHit = bResult;
+	ImpactResult.ImpactPoint = bResult ? ImpactResult.HitResult.Location : EndPoint;
+
+	DrawDebugSphere(GetWorld(), ImpactResult.ImpactPoint, 50.0f, 12, bResult ? FColor::Red : FColor::Green, false, -1.0f);
+
+	return ImpactResult;
+}
+
+void AAOSCharacterBase::UpdateOverlayMaterial()
+{
+	const float BasicAttackRange = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_LMB).Range;
+
+	// 각 클라이언트에서 충돌 지점을 계산합니다.
+	FImpactResult ImpactResult = GetSweepImpactPoint(BasicAttackRange);
+
+	// 이전 타겟의 오버레이 머테리얼을 초기화합니다.
+	if (CurrentTarget)
+	{
+		UMeshComponent* MeshComponent = Cast<UMeshComponent>(CurrentTarget->GetComponentByClass(UMeshComponent::StaticClass()));
+		if (MeshComponent)
+		{
+			MeshComponent->SetOverlayMaterial(OriginalMaterial); // 원래 머테리얼로 설정
+		}
+
+		CurrentTarget = nullptr;
+	}
+
+	// 충돌한 물체가 유효한지 확인합니다.
+	if (ImpactResult.bHit && ::IsValid(ImpactResult.HitResult.GetActor()))
+	{
+		// 충돌한 물체의 충돌 채널을 확인합니다.
+		ECollisionChannel HitChannel = ImpactResult.HitResult.GetComponent()->GetCollisionObjectType();
+		if (HitChannel == ECC_WorldStatic || HitChannel == ECC_WorldDynamic)
+		{
+		}
+		else
+		{
+			CurrentTarget = ImpactResult.HitResult.GetActor();
+
+			UMeshComponent* MeshComponent = Cast<UMeshComponent>(CurrentTarget->GetComponentByClass(UMeshComponent::StaticClass()));
+			if (MeshComponent && OverlayMaterial_Ally && OverlayMaterial_Enemy)
+			{
+				// 원래 머테리얼을 저장합니다.
+				OriginalMaterial = MeshComponent->GetOverlayMaterial();
+
+				ACharacterBase* Character = Cast<ACharacterBase>(CurrentTarget);
+				if (Character)
+				{
+					if (this->TeamSide != Character->TeamSide)
+					{
+						MeshComponent->SetOverlayMaterial(OverlayMaterial_Enemy);
+					}
+					else
+					{
+						MeshComponent->SetOverlayMaterial(OverlayMaterial_Ally);
+					}
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Mesh component or overlay material is invalid on target: %s"), *CurrentTarget->GetName());
+			}
+		}
+	}
 }

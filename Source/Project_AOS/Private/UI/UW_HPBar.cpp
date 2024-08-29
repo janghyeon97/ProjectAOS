@@ -19,7 +19,6 @@ void UUW_HPBar::InitializeHPBarWidget(TWeakObjectPtr<UStatComponent> NewStatComp
 void UUW_HPBar::OnMaxHPChanged(float InOldMaxHP, float InNewMaxHP)
 {
     SetMaxFigure(InNewMaxHP);
-
     OnCurrentHPChanged(0, InNewMaxHP);
 }
 

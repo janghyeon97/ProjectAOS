@@ -22,7 +22,6 @@ public:
 		, SkeletalMesh_Down(nullptr)
 		, SkeletalMesh_Dusk(nullptr)
 		, MinionClass(nullptr)
-		, Montages(TMap<FString, UAnimMontage*>())
 	{
 
 	}
@@ -44,6 +43,9 @@ public:
 	UDataTable* AbilityStatTable;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UDataTable* ResourcesTable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	USkeletalMesh* SkeletalMesh_Down;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -51,9 +53,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UClass* MinionClass;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TMap<FString, UAnimMontage*> Montages;
 };
 
 /**

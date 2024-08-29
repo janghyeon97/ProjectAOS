@@ -62,11 +62,11 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
             BaseAimRotation.Yaw = OwnerCharacter->GetAimYawValue();
 
             // 속도와 가속도의 내적을 계산하여 저장합니다.
-            FVector Velocity = MovementComponent->Velocity;
-            FVector Acceleration = MovementComponent->GetCurrentAcceleration();
+           /* Velocity = MovementComponent->Velocity;
+            Acceleration = MovementComponent->GetCurrentAcceleration(); 
             Velocity.Normalize(0.0001);
             Acceleration.Normalize(0.0001);
-            SpeedAccelDotProduct = FVector::DotProduct(Velocity, Acceleration);
+            SpeedAccelDotProduct = FVector::DotProduct(Velocity, Acceleration);*/
 
             // YawOffset 계산
             YawOffset = UKismetMathLibrary::NormalizedDeltaRotator(
@@ -74,22 +74,96 @@ void UPlayerAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
                 BaseAimRotation
             ).Yaw;
 
-            // 능력 상태 업데이트
-            bIsAbilityRActive = EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Ability_R);
 
-            if (!OwnerCharacter->HasAuthority() && OwnerCharacter != UGameplayStatics::GetPlayerCharacter(this, 0))
+            ECharacterState NewCharacterState = ECharacterState::None;
+
+            if (EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Ability_Q))
             {
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("bIsFalling: %s"), bIsFalling ? TEXT("true") : TEXT("false")), true, false, FLinearColor::Green, 2.0f, TEXT("1"));
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("GroundSpeed: %f"), GroundSpeed), true, false, FLinearColor::Green, 2.0f, TEXT("2"));
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("MoveInputWithMaxSpeed: %s"), *MoveInputWithMaxSpeed.ToString()), true, false, FLinearColor::Green, 2.0f, TEXT("3"));
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("MoveInput: %s"), *MoveInput.ToString()), true, false, FLinearColor::Green, 2.0f, TEXT("4"));
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("BaseAimRotation: %s"), *BaseAimRotation.ToString()), true, false, FLinearColor::Green, 2.0f, TEXT("5"));
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("SpeedAccelDotProduct: %f"), SpeedAccelDotProduct), true, false, FLinearColor::Green, 2.0f, TEXT("6"));
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("YawOffset: %f"), YawOffset), true, false, FLinearColor::Green, 2.0f, TEXT("7"));
-                UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("bIsAbilityRActive: %s"), bIsAbilityRActive ? TEXT("true") : TEXT("false")), true, false, FLinearColor::Green, 2.0f, TEXT("8"));
+                EnumAddFlags(NewCharacterState, ECharacterState::Q);
+            }
+
+            if (EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Ability_E))
+            {
+                EnumAddFlags(NewCharacterState, ECharacterState::E);
+            }
+
+            if (EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Ability_R))
+            {
+                EnumAddFlags(NewCharacterState, ECharacterState::R);
+            }
+
+            if (EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Ability_LMB))
+            {
+                EnumAddFlags(NewCharacterState, ECharacterState::LMB);
+            }
+
+            if (EnumHasAnyFlags(OwnerCharacter->CharacterState, EBaseCharacterState::Ability_RMB))
+            {
+                EnumAddFlags(NewCharacterState, ECharacterState::RMB);
+            }
+
+            // 상태가 변경되었을 때만 업데이트
+            if (NewCharacterState != CharacterState)
+            {
+                CharacterState = NewCharacterState;
+
+                FString CharacterStateString;
+                UEnum* EnumPtr = StaticEnum<ECharacterState>();
+                if (EnumPtr)
+                {
+                    for (int32 i = 0; i < EnumPtr->NumEnums() - 1; ++i)
+                    {
+                        int64 Value = EnumPtr->GetValueByIndex(i);
+                        if (EnumHasAnyFlags(CharacterState, static_cast<ECharacterState>(Value)) && Value != static_cast<uint8>(ECharacterState::None))
+                        {
+                            CharacterStateString += EnumPtr->GetNameStringByIndex(i) + TEXT(" ");
+                        }
+                    }
+                    UE_LOG(LogTemp, Log, TEXT("[UPlayerAnimInstance::NativeUpdateAnimation] %s CharacterState: %s"), OwnerCharacter->HasAuthority() ? TEXT("Server") : TEXT("Client"), *CharacterStateString);
+                }
             }
         }
     }
+}
+
+void UPlayerAnimInstance::NativeThreadSafeUpdateAnimation(float _DeltaSeconds)
+{
+    Super::NativeThreadSafeUpdateAnimation(_DeltaSeconds);
+
+    if (::IsValid(MovementComponent) && ::IsValid(OwnerCharacter))
+    {
+        FVector CurrentLocation = OwnerCharacter->GetActorLocation();
+        FVector DisplacementVector = CurrentLocation - CurrentWorldLocation;
+        DisplacementVector.Z = 0.0f;
+
+        DisplacementSinceLastUpdate = DisplacementVector.Length();
+        DisplacementSpeed = DisplacementSinceLastUpdate / _DeltaSeconds;
+
+        CurrentWorldLocation = CurrentLocation;
+        CurrentWorldRotation = OwnerCharacter->GetActorRotation();
+
+        Acceleration = MovementComponent->GetCurrentAcceleration();
+        Acceleration2D = FVector(Acceleration.X, Acceleration.Y, 0.0f);
+        bHasAcceleration = !Acceleration2D.IsNearlyZero(0.0001);
+
+        Velocity = MovementComponent->Velocity;
+        Velocity2D = FVector(Velocity.X, Velocity.Y, 0.0f);
+        LocomotionAngle = UKismetMathLibrary::NormalizedDeltaRotator(
+            UKismetMathLibrary::MakeRotFromX(Velocity2D),
+            OwnerCharacter->GetBaseAimRotation()
+        ).Yaw;
+
+        Velocity.Normalize(0.0001);
+        Acceleration.Normalize(0.0001);
+        SpeedAccelDotProduct = FVector::DotProduct(Velocity, Acceleration);
+
+        Direction = Velocity2D.Length() > 0 ? CalculateLocomotionDirection(LocomotionAngle) : EDirection::None;
+    }
+}
+
+void UPlayerAnimInstance::NativePostEvaluateAnimation()
+{
+    Super::NativePostEvaluateAnimation();
 }
 
 void UPlayerAnimInstance::SetRootYawOffset(float DeltaSeconds)
@@ -182,6 +256,11 @@ void UPlayerAnimInstance::SetTargetYawAndAnimLength(float AbsRootYawOffset)
     }
 }
 
+bool UPlayerAnimInstance::IsCharacterStateActive(ECharacterState State) const
+{
+    return EnumHasAnyFlags(CharacterState, State);
+}
+
 void UPlayerAnimInstance::TurnInPlace(float DeltaSeconds)
 {
     if (bCanTurnInPlace)
@@ -205,16 +284,6 @@ void UPlayerAnimInstance::TurnInPlace(float DeltaSeconds)
             bCanTurnInPlace = false;
         }
     }
-}
-
-void UPlayerAnimInstance::PlayMontage(UAnimMontage* Montage, float PlayRate)
-{
-	if (!Montage_IsPlaying(Montage))
-	{
-		//UE_LOG(LogTemp, Log, TEXT("Play %s"), *Montage->GetName());
-
-		Montage_Play(Montage, PlayRate, EMontagePlayReturnType::Duration, 0.0f, true);
-	}
 }
 
 void UPlayerAnimInstance::AnimNotify_CheckHit_Q()
@@ -287,6 +356,22 @@ void UPlayerAnimInstance::AnimNotify_WeakAttackEnd()
 	OnStopBasicAttackNotifyBegin.ExecuteIfBound();
 }
 
+void UPlayerAnimInstance::AnimNotify_EnableGravity()
+{
+    if (OnEnableGravityNotifyBegin.IsBound())
+    {
+        OnEnableGravityNotifyBegin.Broadcast();
+    }
+}
+
+void UPlayerAnimInstance::AnimNotify_DisableGravity()
+{
+    if (OnDisableGravityNotifyBegin.IsBound())
+    {
+        OnDisableGravityNotifyBegin.Broadcast();
+    }
+}
+
 void UPlayerAnimInstance::EnableTurnLeft()
 {
 	bCanTurnLeft = true;
@@ -301,4 +386,42 @@ void UPlayerAnimInstance::OnTurnInPlaceEnded()
 {
 	bCanTurnLeft = false;
 	bCanTurnRight = false;
+}
+
+UCharacterMovementComponent* UPlayerAnimInstance::GetMovementComponent() const
+{
+    ACharacter* Owner = Cast<ACharacter>(TryGetPawnOwner());
+    if (!Owner)
+    {
+        return nullptr;
+    }
+
+    UCharacterMovementComponent* CharacterMovementComponent = Cast<UCharacterMovementComponent>(Owner->GetMovementComponent());
+    if (!CharacterMovementComponent)
+    {
+        return nullptr;
+    }
+
+    return CharacterMovementComponent;
+}
+
+EDirection UPlayerAnimInstance::CalculateLocomotionDirection(const float InAngle) const
+{
+    const float RootAngle = FMath::Abs(InAngle);
+
+    if (RootAngle <= 65.f)
+    {
+        return EDirection::Forward;
+    }
+    else
+    {
+        if (RootAngle >= 115.f)
+        {
+            return EDirection::Backward;
+        }
+        else
+        {
+            return InAngle >= 0 ? EDirection::Right : EDirection::Left;
+        }
+    }
 }

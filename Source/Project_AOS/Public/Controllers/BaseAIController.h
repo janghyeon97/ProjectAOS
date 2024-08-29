@@ -20,6 +20,7 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void OnPossess(APawn* InPawn) override;
 
 public:
 	virtual void BeginAI(APawn* InPawn) {};
@@ -27,14 +28,18 @@ public:
 
 public:
 	FTimerHandle PatrolTimerHandle = FTimerHandle();
-
-	static const float PatrolRepeatInterval;
-	static const float PatrolRadius;
-	static const FName StartPatrolPositionKey;
-	static const FName EndPatrolPositionKey;
+	
+	static const FName StartPositionKey;
+	static const FName EndPositionKey;
 	static const FName TargetActorKey;
-	static const FName IsPlayerDetectedKey;
-	static const FName IsGetCrowdControl;
+	static const FName TargetSplineLocationKey;
+	static const FName LastSplineLocationKey;
+	static const FName CurrentSplineDistanceKey;
+	static const FName MovementSpeedKey;
+	static const FName MaxChaseDistanceKey;
+	static const FName RangeKey;
+	static const FName IsAvoidingObstacleKey;
+	static const FName IsAbilityReadyKey;
 
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BaseAIController", meta = (AllowPrivateAccess))

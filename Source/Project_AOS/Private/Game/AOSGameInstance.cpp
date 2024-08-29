@@ -2,6 +2,8 @@
 
 
 #include "Game/AOSGameInstance.h"
+#include "DataProviders/ChampionDataProvider.h" 
+#include "DataProviders/MinionDataProvider.h" 
 
 UAOSGameInstance::UAOSGameInstance()
 {
@@ -11,9 +13,18 @@ UAOSGameInstance::UAOSGameInstance()
 	static ConstructorHelpers::FObjectFinder<UDataTable> MINION_DATATABLE(TEXT("/Game/ProjectAOS/DataTables/Minions/DT_MinionDataTable.DT_MinionDataTable"));
 	if (MINION_DATATABLE.Succeeded()) MinionDataTable = MINION_DATATABLE.Object;
 
-	static ConstructorHelpers::FObjectFinder<UDataTable> GAME_DATATABLE(TEXT("/Game/ProjectAOS/DataTables/Minions/DT_GameDataTable.DT_GameDataTable"));
+	static ConstructorHelpers::FObjectFinder<UDataTable> GAME_DATATABLE(TEXT("/Game/ProjectAOS/DataTables/DT_GameDataTable.DT_GameDataTable"));
 	if (GAME_DATATABLE.Succeeded()) GameDataTable = GAME_DATATABLE.Object;
 
+	static ConstructorHelpers::FObjectFinder<UDataTable> SHAREDGAMEPLAY_DATATABLE(TEXT("/Game/ProjectAOS/DataTables/DT_SharedGamePlayParticles.DT_SharedGamePlayParticles"));
+	if (SHAREDGAMEPLAY_DATATABLE.Succeeded()) SharedGamePlayParticlesDataTable = SHAREDGAMEPLAY_DATATABLE.Object;
+
+	static ConstructorHelpers::FClassFinder<UChampionDataProvider> ChampionProviderBPClass(TEXT("/Script/Project_AOS.ChampionDataProvider"));
+	if (ChampionProviderBPClass.Succeeded()) DataProviderClasses.Add(EObjectType::Player, ChampionProviderBPClass.Class);
+
+	static ConstructorHelpers::FClassFinder<UMinionDataProvider> MinionProviderBPClass(TEXT("/Script/Project_AOS.MinionDataProvider"));
+	if (MinionProviderBPClass.Succeeded()) DataProviderClasses.Add(EObjectType::Minion, MinionProviderBPClass.Class);
+	
 	NumberOfPlayer = -1;
 }
 
@@ -21,153 +32,84 @@ void UAOSGameInstance::Init()
 {
 	Super::Init();
 
-	if (::IsValid(ChampionsList) == false || ChampionsList->GetRowMap().Num() <= 0)
+	if (!::IsValid(ChampionsList))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Not enuough data in ChampionsListTable."));
+		UE_LOG(LogTemp, Error, TEXT("ChampionsList is not valid."));
+		return;
+	}
+
+	if (!::IsValid(MinionDataTable))
+	{
+		UE_LOG(LogTemp, Error, TEXT("MinionDataTable is not valid."));
+		return;
+	}
+
+	InitializeProvider(EObjectType::Player, ChampionsList);
+	InitializeProvider(EObjectType::Minion, MinionDataTable);
+}
+
+void UAOSGameInstance::InitializeProvider(EObjectType ObjectType, UDataTable* DataTable)
+{
+	if (!DataProviderClasses.Contains(ObjectType))
+	{
+		UE_LOG(LogTemp, Error, TEXT("DataProviderClasses does not contain key for ObjectType: %d"), ObjectType);
+		return;
+	}
+
+	UClass* ProviderClass = *DataProviderClasses.Find(ObjectType);
+	if (ProviderClass)
+	{
+		UCharacterDataProviderBase* Provider = NewObject<UCharacterDataProviderBase>(this, ProviderClass);
+		if (Provider)
+		{
+			Provider->Init(DataTable);
+			DataProviders.Add(ObjectType, Provider);
+			UE_LOG(LogTemp, Log, TEXT("Provider for ObjectType: %d initialized and added to DataProviders."), ObjectType);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to create Provider for ObjectType: %d."), ObjectType);
+		}
 	}
 	else
 	{
-		for (int32 i = 1; i <= ChampionsList->GetRowMap().Num(); ++i)
-		{
-			check(nullptr != GetCampionsListTableRow(i))
-			check(nullptr != GetCharacterStatDataTable(i))
-			check(nullptr != GetCharacterAbilityStatDataTable(i))
-		}
+		UE_LOG(LogTemp, Error, TEXT("ProviderClass for ObjectType: %d is not valid."), ObjectType);
 	}
 }
+
 
 void UAOSGameInstance::Shutdown()
 {
 	Super::Shutdown();
 }
 
-const UDataTable* UAOSGameInstance::GetCampionsListTable()
+const UDataTable* UAOSGameInstance::GetCampionsListTable() const 
 {
 	return ChampionsList;
 }
 
-FChampionsListRow* UAOSGameInstance::GetCampionsListTableRow(uint32 ChampionIndex)
+const FChampionsListRow* UAOSGameInstance::GetCampionsListTableRow(const FName& RowName) const
 {
-	if (::IsValid(ChampionsList))
+	if (!::IsValid(ChampionsList))
 	{
-		return ChampionsList->FindRow<FChampionsListRow>(FName(*FString::FromInt(ChampionIndex)), TEXT(""));
-	}
-	return nullptr;
-}
-
-const UDataTable* UAOSGameInstance::GetCharacterStatDataTable(uint32 ChampionIndex)
-{
-	if (::IsValid(ChampionsList) == false)
-	{
+		UE_LOG(LogTemp, Error, TEXT("ChampionsList is not valid."));
 		return nullptr;
 	}
 
-	UDataTable* DataTable = ChampionsList->FindRow<FChampionsListRow>(FName(*FString::FromInt(ChampionIndex)), TEXT(""))->StatTable;
-	if (::IsValid(DataTable) == false)
+	if (RowName.IsNone())
 	{
-		return nullptr;
-	}
-	return DataTable;
-}
-
-FStatTableRow* UAOSGameInstance::GetCharacterStat(uint32 ChampionIndex, uint32 InLevel)
-{
-	if (::IsValid(ChampionsList) == false)
-	{
+		UE_LOG(LogTemp, Error, TEXT("RowName is empty."));
 		return nullptr;
 	}
 
-	UDataTable* DataTable = ChampionsList->FindRow<FChampionsListRow>(FName(*FString::FromInt(ChampionIndex)), TEXT(""))->StatTable;
-	if (::IsValid(DataTable) == false)
+	const FChampionsListRow* ChampionsListRow = ChampionsList->FindRow<FChampionsListRow>(RowName, TEXT(""));
+	if (!ChampionsListRow)
 	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to find row in ChampionsList for RowName: %s"), *RowName.ToString());
 		return nullptr;
 	}
 
-	return DataTable->FindRow<FStatTableRow>(FName(*FString::FromInt(InLevel)), TEXT(""));
-}
-
-const UDataTable* UAOSGameInstance::GetCharacterAbilityStatDataTable(uint32 ChampionIndex)
-{
-	if (::IsValid(ChampionsList) == false)
-	{
-		return nullptr;
-	}
-
-	const UDataTable* DataTable = ChampionsList->FindRow<FChampionsListRow>(FName(*FString::FromInt(ChampionIndex)), TEXT(""))->AbilityStatTable;
-	if (::IsValid(DataTable) == false)
-	{
-		return nullptr;
-	}
-
-	return DataTable;
-}
-
-FAbility* UAOSGameInstance::GetCharacterAbilityStruct(uint32 ChampionIndex, EAbilityID AbilityID, uint32 InLevel)
-{
-	if (::IsValid(ChampionsList) == false)
-	{
-		return nullptr;
-	}
-
-	UDataTable* AbilityStatTable = ChampionsList->FindRow<FChampionsListRow>(FName(*FString::FromInt(ChampionIndex)), TEXT(""))->AbilityStatTable;
-	if (::IsValid(AbilityStatTable) == false)
-	{
-		return nullptr;
-	}
-
-	uint8 MaxLevel = 0;
-	switch (AbilityID)
-	{
-	case EAbilityID::Ability_Q:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_Q.AbilityInformation.MaxLevel;
-		break;
-	case EAbilityID::Ability_E:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_E.AbilityInformation.MaxLevel;
-		break;
-	case EAbilityID::Ability_R:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_R.AbilityInformation.MaxLevel;
-		break;
-	case EAbilityID::Ability_LMB:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_LMB.AbilityInformation.MaxLevel;
-		break;
-	case EAbilityID::Ability_RMB:
-		MaxLevel = AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(1)), TEXT(""))->Ability_RMB.AbilityInformation.MaxLevel;
-		break;
-	}
-
-	uint8 Level = FMath::Clamp<uint8>(InLevel, 1, MaxLevel);
-
-	switch (AbilityID)
-	{
-	case EAbilityID::Ability_Q:
-		return &AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(InLevel)), TEXT(""))->Ability_Q;
-		break;
-	case EAbilityID::Ability_E:
-		return &AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(InLevel)), TEXT(""))->Ability_E;
-		break;
-	case EAbilityID::Ability_R:
-		return &AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(InLevel)), TEXT(""))->Ability_R;
-		break;
-	case EAbilityID::Ability_LMB:
-		return &AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(InLevel)), TEXT(""))->Ability_LMB;
-		break;
-	case EAbilityID::Ability_RMB:
-		return &AbilityStatTable->FindRow<FAbilityStatTableRow>(FName(*FString::FromInt(InLevel)), TEXT(""))->Ability_RMB;
-		break;
-	}
-	return nullptr;
-}
-
-FAbilityStatTable* UAOSGameInstance::GetCharacterAbilityStat(uint32 ChampionIndex, EAbilityID AbilityID, uint32 InLevel, uint8 InstanceIndex)
-{
-	FAbility* DataTable = GetCharacterAbilityStruct(ChampionIndex, AbilityID, InLevel);
-	if (!DataTable)
-	{
-		return nullptr;
-	}
-
-	uint8 InstanceLevel = FMath::Clamp<uint8>(InstanceIndex, 1, DataTable->AbilityInformation.MaxInstances);
-	return &DataTable->AbilityStatInformation[InstanceLevel - 1];
+	return ChampionsListRow;
 }
 
 const UDataTable* UAOSGameInstance::GetCharacterSkinDataTable()
@@ -184,68 +126,118 @@ FCharacterSkinTableRow* UAOSGameInstance::GetCharacterSkinDataTableRow(uint32 In
 	return nullptr;
 }
 
+const UDataTable* UAOSGameInstance::GetCharacterResourcesTable(const FName& RowName)
+{
+	if (::IsValid(ChampionsList) == false)
+	{
+		return nullptr;
+	}
+
+	UDataTable* DataTable = ChampionsList->FindRow<FChampionsListRow>(RowName, TEXT(""))->CharacterResourcesTable;
+	if (::IsValid(DataTable) == false)
+	{
+		return nullptr;
+	}
+
+	return DataTable;
+}
+
+const TArray<FCharacterAnimationAttribute>& UAOSGameInstance::GetCharacterAnimMontages(const FName& RowName)
+{
+	const UDataTable* DataTable = GetCharacterResourcesTable(RowName);
+	if (!::IsValid(DataTable))
+	{
+		return EmptyAnimationArray;
+	}
+
+	FCharacterGamePlayDataRow* DataRow = DataTable->FindRow<FCharacterGamePlayDataRow>(FName(*FString::FromInt(1)), TEXT(""));
+	if (!DataRow)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetCharacterAnimMontages: Failed to find row in DataTable for ChampionIndex %s."), *RowName.ToString());
+		return EmptyAnimationArray;
+	}
+
+	return DataRow->GameplayMontages;
+}
+
+const TArray<FCharacterParticleEffectAttribute>& UAOSGameInstance::GetCharacterParticleEffects(const FName& RowName)
+{
+	const UDataTable* DataTable = GetCharacterResourcesTable(RowName);
+	if (!::IsValid(DataTable))
+	{
+		return EmptyParticleArray;
+	}
+
+	FCharacterGamePlayDataRow* DataRow = DataTable->FindRow<FCharacterGamePlayDataRow>(FName(*FString::FromInt(1)), TEXT(""));
+	if (!DataRow)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetCharacterParticleEffects: Failed to find row in DataTable for ChampionIndex %s."), *RowName.ToString());
+		return EmptyParticleArray;
+	}
+
+	return DataRow->GameplayParticles;
+}
+
+const TArray<FCharacterStaticMeshAttribute>& UAOSGameInstance::GetCharacterStaticMeshes(const FName& RowName)
+{
+	const UDataTable* DataTable = GetCharacterResourcesTable(RowName);
+	if (!::IsValid(DataTable))
+	{
+		return EmptyMeshArray;
+	}
+
+	FCharacterGamePlayDataRow* DataRow = DataTable->FindRow<FCharacterGamePlayDataRow>(FName(*FString::FromInt(1)), TEXT(""));
+	if (!DataRow)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetCharacterStaticMeshes: Failed to find row in DataTable for ChampionIndex %s."), *RowName.ToString());
+		return EmptyMeshArray;
+	}
+
+	return DataRow->GameplayMeshes;
+}
+
+
 const UDataTable* UAOSGameInstance::GetMinionDataTable()
 {
 	return MinionDataTable;
 }
 
-FMinionDataTableRow* UAOSGameInstance::GetMinionDataTableRow(EMinionType MinionType)
-{
-	if (!::IsValid(MinionDataTable))
-	{
-		return nullptr;
-	}
-
-	for (int32 i = 1; i <= MinionDataTable->GetRowMap().Num(); ++i)
-	{
-		EMinionType Result = MinionDataTable->FindRow<FMinionDataTableRow>(FName(*FString::FromInt(i)), TEXT(""))->MinionType;
-		if (MinionType == Result)
-		{
-			return MinionDataTable->FindRow<FMinionDataTableRow>(FName(*FString::FromInt(i)), TEXT(""));
-		}
-	}
-
-	return nullptr;
-}
-
-FStatTableRow* UAOSGameInstance::GetMinionStat(EMinionType MinionType)
-{
-	const UDataTable* DataTable = GetMinionDataTableRow(MinionType)->StatTable;
-	if (!DataTable)
-	{
-		return nullptr;
-	}
-
-	FStatTableRow* FoundRow = nullptr;
-	switch (MinionType)
-	{
-	case EMinionType::Melee:
-		FoundRow = DataTable->FindRow<FStatTableRow>(FName(*FString::FromInt(1)), TEXT(""));
-		break;
-	case EMinionType::Ranged:
-		FoundRow = DataTable->FindRow<FStatTableRow>(FName(*FString::FromInt(2)), TEXT(""));
-		break;
-	case EMinionType::Siege:
-		FoundRow = DataTable->FindRow<FStatTableRow>(FName(*FString::FromInt(3)), TEXT(""));
-		break;
-	case EMinionType::Super:
-		FoundRow = DataTable->FindRow<FStatTableRow>(FName(*FString::FromInt(4)), TEXT(""));
-		break;
-	default:
-		UE_LOG(LogTemp, Warning, TEXT("Invalid MinionType"));
-		return nullptr;
-	}
-
-	if (FoundRow == nullptr)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Failed to find row for MinionType: %d"), static_cast<int32>(MinionType));
-		return nullptr;
-	}
-
-	return FoundRow;
-}
-
 const UDataTable* UAOSGameInstance::GetGameDataTable()
 {
 	return GameDataTable;
+}
+
+const UDataTable* UAOSGameInstance::GetSharedGamePlayParticlesDataTable()
+{
+	return SharedGamePlayParticlesDataTable;
+}
+
+FSharedGameplay* UAOSGameInstance::GetSharedGamePlayParticles()
+{
+	if (!SharedGamePlayParticlesDataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetSharedGamePlayParticles: SharedGamePlayParticlesDataTable is null."));
+		return nullptr;
+	}
+
+	FSharedGameplay* SharedGameplayRow = SharedGamePlayParticlesDataTable->FindRow<FSharedGameplay>(FName(*FString::FromInt(1)), TEXT(""));
+	if (!SharedGameplayRow)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetSharedGamePlayParticles: Failed to find row in SharedGamePlayParticlesDataTable."));
+		return nullptr;
+	}
+
+	return SharedGameplayRow;
+}
+
+
+UCharacterDataProviderBase* UAOSGameInstance::GetDataProvider(EObjectType ObjectType) const
+{
+	if (!DataProviders.Contains(ObjectType))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[UAOSGameInstance::GetDataProvider] DataProvider for ObjectType %d does not exist"), ObjectType);
+		return nullptr;
+	}
+
+	return DataProviders[ObjectType];
 }

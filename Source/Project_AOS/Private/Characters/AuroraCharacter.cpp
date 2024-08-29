@@ -16,11 +16,14 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Structs/DamageInfomationStruct.h"
+#include "Structs/CustomCombatData.h"
+#include "Game/AOSGameInstance.h"
 #include "Props/SplineActor.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
 #include "Props/FreezeSegment.h"
+#include "CrowdControls/StunEffect.h"
+#include "CrowdControls/SlowEffect.h"
 
 
 AAuroraCharacter::AAuroraCharacter()
@@ -34,105 +37,18 @@ AAuroraCharacter::AAuroraCharacter()
 		AbilityStatComponent->SetIsReplicated(true);
 	}
 
-	InitializeAbilityMontages();
-	InitializeAbilityParticles();
-	InitializeAbilityMeshes();
-
-	Ability_E_FirstDelay = 0.2f;
-	Ability_E_BoostStrength = 10;
-	Ability_E_ShieldDuration = 1.25f;
-
-	Ability_R_BoostStrength = 600.f;
-	Ability_R_ExplodeDelay = 0.67f;
-	Ability_R_StunDuration = 2.0f;
-	Ability_R_Range = 600.f;
-
-	Ability_LMB_CurrentComboCount = 0;
-	Ability_LMB_MaxComboCount = 4;
-
-	Ability_RMB_QuadraticScale = 3.f;
-	Ability_RMB_JumpScale = 60.f;
-
-	SplinePointIndex = 0;
-
 	bIsTumbling = false;
 	bIsDashing = false;
 
+	Ability_LMB_CurrentComboCount = 0;
+	Ability_LMB_MaxComboCount = 4;
+		
 	SelectedCharacterIndex = 1;
+	ChampionName = "Aurora";
 
 	PrimaryActorTick.bCanEverTick = true;
-}
 
-void AAuroraCharacter::InitializeAbilityMontages()
-{
-	Super::InitializeAbilityMontages();
-
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_Q_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_Q_Montage.Ability_Q_Montage"));
-	if (ABILITY_Q_MONTAGE.Succeeded()) Ability_Q_Montage = ABILITY_Q_MONTAGE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_E_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_E_Montage.Ability_E_Montage"));
-	if (ABILITY_E_MONTAGE.Succeeded()) Ability_E_Montage = ABILITY_E_MONTAGE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_R_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_R_Montage.Ability_R_Montage"));
-	if (ABILITY_R_MONTAGE.Succeeded()) Ability_R_Montage = ABILITY_R_MONTAGE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_LMB_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_LMB_Montage.Ability_LMB_Montage"));
-	if (ABILITY_LMB_MONTAGE.Succeeded()) Ability_LMB_Montage = ABILITY_LMB_MONTAGE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> ABILITY_RMB_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_RMB_Montage.Ability_RMB_Montage"));
-	if (ABILITY_RMB_MONTAGE.Succeeded()) Ability_RMB_Montage = ABILITY_RMB_MONTAGE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> STUN_MONTAGE(TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Stun_Montage.Stun_Montage"));
-	if (STUN_MONTAGE.Succeeded()) Stun_Montage = STUN_MONTAGE.Object;
-}
-
-void AAuroraCharacter::InitializeAbilityParticles()
-{
-	Super::InitializeAbilityParticles();
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> MELEE_SUCCESS_IMPACT(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Primary/FX/P_Aurora_Melee_SucessfulImpact.P_Aurora_Melee_SucessfulImpact"));
-	if (MELEE_SUCCESS_IMPACT.Succeeded()) MeleeSuccessImpact = MELEE_SUCCESS_IMPACT.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ABILITY_Q_ROOTED(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Freeze/FX/P_Aurora_Freeze_Rooted.P_Aurora_Freeze_Rooted"));
-	if (ABILITY_Q_ROOTED.Succeeded()) FreezeRooted = ABILITY_Q_ROOTED.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ABILITY_Q_SEGMENT(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Freeze/FX/P_Aurora_Freeze_Segment.P_Aurora_Freeze_Segment"));
-	if (ABILITY_Q_SEGMENT.Succeeded()) FreezeSegment = ABILITY_Q_SEGMENT.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ABILITY_Q_WHRILWIND(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Freeze/FX/P_Aurora_Freeze_Whrilwind.P_Aurora_Freeze_Whrilwind"));
-	if (ABILITY_Q_WHRILWIND.Succeeded()) FreezeWhrilwind = ABILITY_Q_WHRILWIND.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ABILITY_Q_SEGMENTtCRUMBLE(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Freeze/FX/P_Aurora_Freeze_Segment_Crumble.P_Aurora_Freeze_Segment_Crumble"));
-	if (ABILITY_Q_SEGMENTtCRUMBLE.Succeeded()) SegmentCrumble = ABILITY_Q_SEGMENTtCRUMBLE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> SCREEN_FROST_FROZEN(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_ScreenFrost_Frozen.P_Aurora_ScreenFrost_Frozen"));
-	if (SCREEN_FROST_FROZEN.Succeeded()) ScreenFrostFrozen = SCREEN_FROST_FROZEN.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ULTIMATE_EXPLODE(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_Ultimate_Explode.P_Aurora_Ultimate_Explode"));
-	if (ULTIMATE_EXPLODE.Succeeded()) UltimateExplode = ULTIMATE_EXPLODE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ULTIMATE_WARMUP(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_Ultimate_Warmup.P_Aurora_Ultimate_Warmup"));
-	if (ULTIMATE_WARMUP.Succeeded()) UltimateWarmUp = ULTIMATE_WARMUP.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ULTIMATE_FROZEN(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_Ultimate_Frozen.P_Aurora_Ultimate_Frozen"));
-	if (ULTIMATE_FROZEN.Succeeded()) UltimateFrozen = ULTIMATE_FROZEN.Object;
-
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> ULTIMATE_INITIALBLAST(TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_Ultimate_InitialBlast.P_Aurora_Ultimate_InitialBlast"));
-	if (ULTIMATE_INITIALBLAST.Succeeded()) UltimateInitialBlast = ULTIMATE_INITIALBLAST.Object;
-}
-
-void AAuroraCharacter::InitializeAbilityMeshes()
-{
-	Super::InitializeAbilityMeshes();
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ABILITY_E_SHIELDBOTTOM(TEXT("/Game/Paragon/ParagonAurora/FX/Meshes/Aurora/SM_FrostShield_Spikey_Bottom.SM_FrostShield_Spikey_Bottom"));
-	if (ABILITY_E_SHIELDBOTTOM.Succeeded()) ShieldBottom = ABILITY_E_SHIELDBOTTOM.Object;
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ABILITY_E_SHIELDMIDDLE(TEXT("/Game/Paragon/ParagonAurora/FX/Meshes/Aurora/SM_FrostShield_Spikey_Middle.SM_FrostShield_Spikey_Middle"));
-	if (ABILITY_E_SHIELDMIDDLE.Succeeded()) ShieldMiddle = ABILITY_E_SHIELDMIDDLE.Object;
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ABILITY_E_SHIELDTOP(TEXT("/Game/Paragon/ParagonAurora/FX/Meshes/Aurora/SM_FrostShield_Spikey_Top.SM_FrostShield_Spikey_Top"));
-	if (ABILITY_E_SHIELDTOP.Succeeded()) ShieldTop = ABILITY_E_SHIELDTOP.Object;
+	InitializeCharacterResources();
 }
 
 void AAuroraCharacter::Tick(float DeltaSeconds)
@@ -166,19 +82,12 @@ void AAuroraCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (::IsValid(AnimInstance))
+	UPlayerAnimInstance* PlayerAnimInstance = Cast<UPlayerAnimInstance>(GetMesh()->GetAnimInstance());
+	if (::IsValid(PlayerAnimInstance))
 	{
-		AnimInstance->OnMontageEnded.AddDynamic(this, &AAuroraCharacter::MontageEnded);
-		AnimInstance->OnStopBasicAttackNotifyBegin.BindUObject(this, &AAuroraCharacter::Ability_LMB_AttackEnded);
-		//AnimInstance->OnAuroraDashEnded.BindUObject(this, &AAuroraCharacter::Ability_E_Ended);
+		PlayerAnimInstance->OnMontageEnded.AddDynamic(this, &AAuroraCharacter::MontageEnded);
+		PlayerAnimInstance->OnStopBasicAttackNotifyBegin.BindUObject(this, &AAuroraCharacter::Ability_LMB_AttackEnded);
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::BeginPlay] AnimInstance is no vaild."));
-	}
-
-	//RegisterAbilityStage(EAbilityID::Ability_Q, 1, FAbilityStageFunction::CreateLambda([this]() { PlayeAbilityMontage(Ability_Q_Montage, 1.0); }));
-	//RegisterAbilityStage(EAbilityID::Ability_Q, 2, FAbilityStageFunction::CreateLambda([this]() { Ability_Q_CalculateAndRequestParticleSpawn(); }));
 }
 
 void AAuroraCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -208,35 +117,47 @@ void AAuroraCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ThisClass, ReplicatedTargetLocation);
-	DOREPLIFETIME(ThisClass, bSmoothMovement);
+	DOREPLIFETIME(ThisClass, bSmoothMovement);	
 }
 
 void AAuroraCharacter::Move(const FInputActionValue& InValue)
 {
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Move))
+	if (!EnumHasAnyFlags(CharacterState, EBaseCharacterState::Move) || EnumHasAnyFlags(CrowdControlState, EBaseCrowdControl::Stun) || EnumHasAnyFlags(CrowdControlState, EBaseCrowdControl::Snare))
 	{
-		if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::AbilityUsed))
-		{
-			//EnumRemoveFlags(CharacterState, EBaseCharacterState::AbilityUsed);
-			AnimInstance->StopAllMontages(0.25f);
-			StopAllMontages_Server(0.25f);
-		}
-
-		PreviousForwardInputValue = ForwardInputValue;
-		PreviousRightInputValue = RightInputValue;
-
-		ForwardInputValue = InValue.Get<FVector2D>().X;
-		RightInputValue = InValue.Get<FVector2D>().Y;
-
-		const FRotator ControlRotation = GetController()->GetControlRotation();
-		const FRotator ControlRotationYaw(0.f, ControlRotation.Yaw, 0.f);
-
-		const FVector ForwardVector = FRotationMatrix(ControlRotationYaw).GetUnitAxis(EAxis::X);
-		const FVector RightVector = FRotationMatrix(ControlRotationYaw).GetUnitAxis(EAxis::Y);
-
-		AddMovementInput(ForwardVector, ForwardInputValue);
-		AddMovementInput(RightVector, RightInputValue);
+		return;
 	}
+
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::AbilityUsed))
+	{
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+		ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::AbilityUsed);
+
+		AnimInstance->StopAllMontages(0.5f);
+		StopAllMontages_Server(0.5, false);
+	}
+
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Recall))
+	{
+		ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Recall);
+
+		AnimInstance->StopAllMontages(0.1f);
+		StopAllMontages_Server(0.1, false);
+	}
+
+	PreviousForwardInputValue = ForwardInputValue;
+	PreviousRightInputValue = RightInputValue;
+
+	ForwardInputValue = InValue.Get<FVector2D>().X;
+	RightInputValue = InValue.Get<FVector2D>().Y;
+
+	const FRotator ControlRotation = GetController()->GetControlRotation();
+	const FRotator ControlRotationYaw(0.f, ControlRotation.Yaw, 0.f);
+
+	const FVector ForwardVector = FRotationMatrix(ControlRotationYaw).GetUnitAxis(EAxis::X);
+	const FVector RightVector = FRotationMatrix(ControlRotationYaw).GetUnitAxis(EAxis::Y);
+
+	AddMovementInput(ForwardVector, ForwardInputValue);
+	AddMovementInput(RightVector, RightInputValue);
 }
 
 void AAuroraCharacter::Look(const FInputActionValue& InValue)
@@ -255,7 +176,7 @@ void AAuroraCharacter::Look(const FInputActionValue& InValue)
 
 /*
 	1. UniqueValue[0]: RootDuration			중앙 파티클 지속시간
-	2. UniqueValue[1]: RingDuration			링 파티클 지속시간
+	2. UniqueValue[1]: RingDuration			링 파티클 지속시간	
 	3. UniqueValue[2]: ParticleScale		링 파티클 크기
 	4. UniqueValue[3]: NumParticles			링 파티클 개수
 	5. UniqueValue[4]: FirstDelay			링 파티클 초기 지연시간
@@ -263,67 +184,60 @@ void AAuroraCharacter::Look(const FInputActionValue& InValue)
 */
 void AAuroraCharacter::Ability_Q()
 {
-	bool bCanUseAbility = ValidateAbilityUsage();
-	if (!bCanUseAbility)
+	if (!ValidateAbilityUsage())
 	{
 		return;
 	}
 
-	bool bAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_Q);
-	if (!bAbilityReady)
+	bool bIsAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_Q);
+	if (bIsAbilityReady)
+	{
+		ServerNotifyAbilityUse(EAbilityID::Ability_Q, ETriggerEvent::Started);
+		SaveCharacterTransform();
+
+		const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_Q);
+
+		const float Ability_Q_Radius = AbilityStatTable.Radius;
+		const float Ability_Q_RingDuration = GetUniqueAttribute(EAbilityID::Ability_Q, "RingDuration", 2.f);
+		const float Ability_Q_ParticleScale = GetUniqueAttribute(EAbilityID::Ability_Q, "ParticleScale", 1.f);
+		const float Ability_Q_NumParicles = GetUniqueAttribute(EAbilityID::Ability_Q, "NumParticles", 28.f);
+		const float Ability_Q_FirstDelay = GetUniqueAttribute(EAbilityID::Ability_Q, "FirstDelay", 0.35f);
+		const float Ability_Q_Rate = GetUniqueAttribute(EAbilityID::Ability_Q, "Rate", 0.01f);
+
+		FCachedParticleInfo ParticleInfomation;
+		ParticleInfomation.Lifetime = Ability_Q_RingDuration;
+		ParticleInfomation.NumParicles = Ability_Q_NumParicles;
+		ParticleInfomation.Scale = Ability_Q_ParticleScale;
+		ParticleInfomation.Rate = Ability_Q_Rate;
+		ParticleInfomation.Radius = Ability_Q_Radius;
+
+		const float Character_AttackDamage = StatComponent->GetAttackDamage();
+		const float Character_AbilityPower = StatComponent->GetAbilityPower();
+
+		const float BaseAttackDamage = AbilityStatTable.AttackDamage;
+		const float BaseAbilityPower = AbilityStatTable.AbilityDamage;
+		const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
+		const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
+
+		const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
+
+		FDamageInformation DamageInformation;
+		DamageInformation.AbilityID = EAbilityID::Ability_Q;
+		DamageInformation.AttackEffect = EAttackEffect::AbilityEffects;
+		DamageInformation.AddDamage(EDamageType::Magic, FinalDamage);
+
+		FTransform Transform(UKismetMathLibrary::MakeRotFromX(LastForwardVector), LastCharacterLocation, FVector(1));
+
+		PlayMontage("Q", 1.0, NAME_None, TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_Q_Montage.Ability_Q_Montage"));
+		SpawnFreezeSegments_Server(Transform, ParticleInfomation, DamageInformation);
+	}
+	else
 	{
 		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
-		return;
 	}
-
-	// 능력 쿨타임 설정
-	//AbilityStatComponent->UseAbility(EAbilityID::Ability_Q, GetWorld()->GetTimeSeconds());
-	//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_Q);
-
-	ServerNotifyAbilityUse(EAbilityID::Ability_Q, ETriggerEvent::None);
-	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::Ability_Q"));
-	SaveCharacterTransform();
-
-	// 능력 통계 값을 가져와서 고유 값을 확인
-	const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_Q);;
-	TMap<FString, float> UniqueAttributes = AbilityStatTable.GetUniqueAttributesMap();
-
-	Ability_Q_Radius = AbilityStatTable.Radius != 0 ? AbilityStatTable.Radius : 440.f;
-	Ability_Q_RingDuration = UniqueAttributes.Contains("RingDuration") ? UniqueAttributes["RingDuration"] : 2.f;
-	Ability_Q_ParticleScale = UniqueAttributes.Contains("ParticleScale") ? UniqueAttributes["ParticleScale"] : 1.f;
-	Ability_Q_NumParicles = UniqueAttributes.Contains("NumParticles") ? UniqueAttributes["NumParticles"] : 28;
-	Ability_Q_FirstDelay = UniqueAttributes.Contains("FirstDelay") ? UniqueAttributes["FirstDelay"] : 0.35f;
-	Ability_Q_Rate = UniqueAttributes.Contains("Rate") ? UniqueAttributes["Rate"] : 0.01f;
-
-	FCachedParticleInfo ParticleInfomation;
-	ParticleInfomation.Lifetime = Ability_Q_RingDuration;
-	ParticleInfomation.NumParicles = Ability_Q_NumParicles;
-	ParticleInfomation.Scale = Ability_Q_ParticleScale;
-	ParticleInfomation.Rate = Ability_Q_Rate;
-	ParticleInfomation.Radius = Ability_Q_Radius;
-
-	// 데미지 계산
-	const float Character_AttackDamage = StatComponent->GetAttackDamage();
-	const float Character_AbilityPower = StatComponent->GetAbilityPower();
-
-	const float BaseAttackDamage = AbilityStatTable.AttackDamage ? AbilityStatTable.AttackDamage : 0;
-	const float BaseAbilityPower = AbilityStatTable.AbilityDamage ? AbilityStatTable.AbilityDamage : 0;
-	const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling ? AbilityStatTable.AD_PowerScaling : 0;
-	const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling ? AbilityStatTable.AP_PowerScaling : 0;
-
-	const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
-
-	FDamageInfomation DamageInfomation;
-	DamageInfomation.AbilityID = EAbilityID::Ability_Q;
-	DamageInfomation.AttackEffect = EAttackEffect::AbilityEffects;
-	DamageInfomation.CrowdControls.Add(FCrowdControlInformation(EBaseCrowdControl::Snare, 1.0));
-	DamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
-
-	FTransform Transform(UKismetMathLibrary::MakeRotFromX(LastForwardVector), LastCharacterLocation, FVector(1));
-
-	PlayeAbilityMontage(Ability_Q_Montage, 1.0);
-	SpawnFreezeSegments_Server(Transform, ParticleInfomation, DamageInfomation);
 }
+
+
 
 
 /*
@@ -358,17 +272,21 @@ void AAuroraCharacter::Ability_E()
 	bUseControllerRotationYaw = false;
 
 	float Range = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_E).Range;
-	FVector TargetLocation = LastCharacterLocation + LastForwardVector * (Range > 0 ? Range : 900.f);
+		FVector TargetLocation = LastCharacterLocation + LastForwardVector * (Range > 0 ? Range : 900.f);
+
+	UStaticMesh* ShieldTop = GetOrLoadMesh(TEXT("ShieldTop"), TEXT("/Game/Paragon/ParagonAurora/FX/Meshes/Aurora/SM_FrostShield_Spikey_Top.SM_FrostShield_Spikey_Top"));
+	UStaticMesh* ShieldMiddle = GetOrLoadMesh(TEXT("ShieldMiddle"), TEXT("/Game/Paragon/ParagonAurora/FX/Meshes/Aurora/SM_FrostShield_Spikey_Middle.SM_FrostShield_Spikey_Middle"));
+	UStaticMesh* ShieldBottom = GetOrLoadMesh(TEXT("ShieldBottom"), TEXT("/Game/Paragon/ParagonAurora/FX/Meshes/Aurora/SM_FrostShield_Spikey_Bottom.SM_FrostShield_Spikey_Bottom"));
 
 	if (::IsValid(ShieldTop) && ::IsValid(ShieldMiddle) && ::IsValid(ShieldBottom))
 	{
-		SpawnAttachedMeshAtLocation_Server(ShieldBottom, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, -50.0f), Ability_E_ShieldDuration);
-		SpawnAttachedMeshAtLocation_Server(ShieldMiddle, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 0.0f), Ability_E_ShieldDuration);
-		SpawnAttachedMeshAtLocation_Server(ShieldTop, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 50.0f), Ability_E_ShieldDuration);
+		SpawnAttachedMeshAtLocation_Server(ShieldBottom, LastCharacterLocation * 10, 1.25f);
+		SpawnAttachedMeshAtLocation_Server(ShieldMiddle, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 90.0f), 1.25f);
+		SpawnAttachedMeshAtLocation_Server(ShieldTop, LastCharacterLocation * 10 + FVector(0.0f, 0.0f, 180.0f), 1.25f);
 	}
 
 	Ability_E_Server(TargetLocation);
-	PlayeAbilityMontage(Ability_E_Montage, 1.0);
+	PlayMontage("E", 1.0, NAME_None, TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_E_Montage.Ability_E_Montage"));
 }
 
 void AAuroraCharacter::Ability_E_Server_Implementation(FVector TargetLocation)
@@ -397,7 +315,7 @@ void AAuroraCharacter::HandleDashing(float DeltaSeconds)
 	}
 	else
 	{
-		FVector NewLocation = FMath::Lerp(LastCharacterLocation, Ability_E_TargetLocation, InterpolationAlpha) + FVector(0, 0, 60.f);
+		FVector NewLocation = FMath::Lerp(LastCharacterLocation, Ability_E_TargetLocation, InterpolationAlpha) + FVector(0, 0, 95.f);
 
 		bool bLocationSet = SetActorLocation(NewLocation, true, nullptr, ETeleportType::None);
 		if (!bLocationSet)
@@ -423,11 +341,11 @@ void AAuroraCharacter::HandleDashing(float DeltaSeconds)
 	8. UniqueValue[7]: MovementSpeedSlow				이동속도 감소율
 	9. UniqueValue[8]: StunDuration						기절 지속시간
 	10. UniqueValue[9]: ExplodeTime						연쇄 폭팔 시간
+	10. UniqueValue[9]: BoostStrength					점프 강도
 */
 void AAuroraCharacter::Ability_R()
 {
-	bool bCanUseAbility = ValidateAbilityUsage();
-	if (!bCanUseAbility)
+	if (!ValidateAbilityUsage())
 	{
 		return;
 	}
@@ -439,33 +357,27 @@ void AAuroraCharacter::Ability_R()
 		return;
 	}
 
-
 	//AbilityStatComponent->UseAbility(EAbilityID::Ability_R, GetWorld()->GetTimeSeconds());
 	//AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_R);
+
+	const float BoostStrength = GetUniqueAttribute(EAbilityID::Ability_R, TEXT("BoostStrength"), 600.f);
 
 	ServerNotifyAbilityUse(EAbilityID::Ability_R, ETriggerEvent::None);
 	SaveCharacterTransform();
 
-	PlayeAbilityMontage(Ability_R_Montage, 1.0);
-
-	Ability_R_Started_Server();
-
-	if (::IsValid(UltimateWarmUp))
-	{
-		FTransform ParticleTransform(FRotator::ZeroRotator, LastCharacterLocation, FVector(1.0f));
-		SpawnAttachedParticleAtLocation_Server(UltimateWarmUp, ParticleTransform);
-	}
+	PlayMontage("R", 1.0, NAME_None, TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_R_Montage.Ability_R_Montage"));
+	Ability_R_Started_Server(BoostStrength);
 }
 
-void AAuroraCharacter::Ability_R_Started_Server_Implementation()
+void AAuroraCharacter::Ability_R_Started_Server_Implementation(const float BoostStrength)
 {
 	if (!GetCharacterMovement()->IsFalling())
 	{
-		LaunchCharacter(FVector(0, 0, Ability_R_BoostStrength), false, true);
+		LaunchCharacter(FVector(0, 0, BoostStrength), false, true);
 	}
 	else
 	{
-		LaunchCharacter(FVector(0, 0, Ability_R_BoostStrength / 3), false, true);
+		LaunchCharacter(FVector(0, 0, BoostStrength / 3), false, true);
 	}
 }
 
@@ -475,8 +387,7 @@ void AAuroraCharacter::Ability_R_Started_Server_Implementation()
  */
 void AAuroraCharacter::Ability_LMB()
 {
-	bool bCanUseAbility = ValidateAbilityUsage();
-	if (!bCanUseAbility)
+	if (!ValidateAbilityUsage())
 	{
 		return;
 	}
@@ -488,12 +399,6 @@ void AAuroraCharacter::Ability_LMB()
 		AbilityStatComponent->StartAbilityCooldown(EAbilityID::Ability_LMB);
 
 		ServerNotifyAbilityUse(EAbilityID::Ability_LMB, ETriggerEvent::None);
-
-		if (::IsValid(Ability_LMB_Montage) == false)
-		{
-			UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_LMB] Ability_LMB_Montage is null."));
-			return;
-		}
 
 		if (Ability_LMB_CurrentComboCount == 0)
 		{
@@ -519,8 +424,8 @@ void AAuroraCharacter::StartComboAttack()
 	Ability_LMB_AnimLength = 1.0f;
 
 	Ability_LMB_PlayRate = SetAnimPlayRate(Ability_LMB_AnimLength);
-	AnimInstance->PlayMontage(Ability_LMB_Montage, Ability_LMB_PlayRate);
-	PlayMontage_Server(Ability_LMB_Montage, Ability_LMB_PlayRate);
+
+	PlayMontage(TEXT("LMB"), Ability_LMB_PlayRate, NAME_None, TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_LMB_Montage.Ability_LMB_Montage"));
 }
 
 /**
@@ -538,7 +443,7 @@ void AAuroraCharacter::ContinueComboAttack()
 		Ability_LMB_AnimLength = 1.0f;
 		break;
 	case 4:
-		Ability_LMB_AnimLength = 1.7f;
+		Ability_LMB_AnimLength = 0.5f;
 		break;
 	default:
 		Ability_LMB_AnimLength = 1.0f;
@@ -546,15 +451,11 @@ void AAuroraCharacter::ContinueComboAttack()
 	}
 
 	Ability_LMB_PlayRate = SetAnimPlayRate(Ability_LMB_AnimLength);
+
 	FName NextSectionName = GetAttackMontageSection(Ability_LMB_CurrentComboCount);
-
-	AnimInstance->Montage_SetPlayRate(Ability_LMB_Montage, Ability_LMB_PlayRate);
-	AnimInstance->PlayMontage(Ability_LMB_Montage, Ability_LMB_PlayRate);
-	AnimInstance->Montage_JumpToSection(NextSectionName, Ability_LMB_Montage);
-
-	PlayMontage_Server(Ability_LMB_Montage, Ability_LMB_PlayRate);
-	MontageJumpToSection_Server(Ability_LMB_Montage, NextSectionName, Ability_LMB_PlayRate);
+	PlayMontage("LMB", Ability_LMB_PlayRate, NextSectionName, TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_LMB_Montage.Ability_LMB_Montage"));
 }
+
 
 
 /**
@@ -568,15 +469,13 @@ void AAuroraCharacter::ContinueComboAttack()
  */
 void AAuroraCharacter::Ability_RMB()
 {
-	bool bCanUseAbility = ValidateAbilityUsage();
-	if (!bCanUseAbility)
+	if (!ValidateAbilityUsage())
 	{
 		return;
 	}
 
 	bool bIsAbilityReady = AbilityStatComponent->IsAbilityReady(EAbilityID::Ability_RMB);
-
-	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::SwitchAction) && bIsAbilityReady)
+	if (bIsAbilityReady)
 	{
 		// 능력을 사용하고 쿨다운 시작
 		//AbilityStatComponent->UseAbility(EAbilityID::Ability_RMB, GetWorld()->GetTimeSeconds());
@@ -592,21 +491,10 @@ void AAuroraCharacter::Ability_RMB()
 		const FVector RightDirection = FRotationMatrix(ControlRotationYaw).GetUnitAxis(EAxis::Y);
 		const FVector MoveDirection = (ForwardDirection * ForwardInputValue) + (RightDirection * RightInputValue);
 
-		if (::IsValid(Ability_RMB_Montage))
-		{
-			int32 DirectionIndex = CalculateDirectionIndex();
-			FName MontageSectionName = FName(*FString::Printf(TEXT("RMB%d"), DirectionIndex));
+		int32 DirectionIndex = CalculateDirectionIndex();
+		FName MontageSectionName = FName(*FString::Printf(TEXT("RMB%d"), DirectionIndex));
 
-			AnimInstance->PlayMontage(Ability_RMB_Montage, 1.0f);
-			AnimInstance->Montage_JumpToSection(MontageSectionName, Ability_RMB_Montage);
-			PlayMontage_Server(Ability_RMB_Montage, 1.0f);
-			MontageJumpToSection_Server(Ability_RMB_Montage, MontageSectionName, 1.0f);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[AAuroraCharacter::Ability_RMB] Ability_RMB_Montage is null."));
-		}
-
+		PlayMontage("RMB", 1.0f, MontageSectionName, TEXT("/Game/ProjectAOS/Characters/Aurora/Animations/Ability_RMB_Montage.Ability_RMB_Montage"));
 		Ability_RMB_Server(MoveDirection);
 	}
 	else
@@ -614,6 +502,7 @@ void AAuroraCharacter::Ability_RMB()
 		AbilityStatComponent->OnVisibleDescription.Broadcast("The ability is not ready yet.");
 	}
 }
+
 
 FVector AAuroraCharacter::CalculateTargetLocation(const FVector& MoveDirection, const float Range)
 {
@@ -791,20 +680,7 @@ int32 AAuroraCharacter::CalculateDirectionIndex()
 	return DirectionIndex + 1;
 }
 
-void AAuroraCharacter::Ability_Q_CheckHit()
-{
-
-}
-
-void AAuroraCharacter::Ability_E_CheckHit()
-{
-
-}
-
-
 /*
- *  
- * 
  *	1. UniqueValue[0]: HeroShatterAbilityDamage			챔피언 대상 추가 데미지
  *	2. UniqueValue[1]: NonHeroShatterAbilityDamage		비 챔피언 대상 추가 데미지
  *	3. UniqueValue[2]: InitialPowerScaling				초기 AbilityPower 계수
@@ -818,17 +694,9 @@ void AAuroraCharacter::Ability_E_CheckHit()
  */
 void AAuroraCharacter::Ability_R_CheckHit()
 {
-	// 폭발 파티클 생성
-	if (UltimateExplode)
-	{
-		SpawnRootedParticleAtLocation_Server(UltimateExplode, FTransform(FRotator(0), GetActorLocation(), FVector(1)));
-	}
+	const FAbilityStatTable& StatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R);
 
-	// 능력 스탯 테이블 및 고유 속성 가져오기
-	const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_R);
-	TMap<FString, float> UniqueAttributes = AbilityStatTable.GetUniqueAttributesMap();
-
-	float CollisionSphereSize = AbilityStatTable.Radius > 0 ? AbilityStatTable.Radius : 850.f;
+	float CollisionSphereSize = StatTable.Radius;
 	FCollisionQueryParams params(NAME_None, false, this);
 
 	OutHits.Empty();
@@ -865,42 +733,48 @@ void AAuroraCharacter::Ability_R_CheckHit()
 		// 적 팀일 경우에만 데미지 적용
 		if (Character->TeamSide != this->TeamSide)
 		{
-			const float SlowDuration = UniqueAttributes.Contains("SlowDuration") ? UniqueAttributes["SlowDuration"] : 1.5f;
-			const float MovementSpeedSlow = UniqueAttributes.Contains("MovementSpeedSlow") ? UniqueAttributes["MovementSpeedSlow"] : 20.0f;
+			const float SlowDuration = GetUniqueAttribute(EAbilityID::Ability_R, "SlowDuration", 1.5f);
+			const float MovementSpeedSlow = GetUniqueAttribute(EAbilityID::Ability_R, "MovementSpeedSlow", 20.f);
 
-			FDamageInfomation DamageInfomation;
-			DamageInfomation.AbilityID = EAbilityID::Ability_R;
-			DamageInfomation.CrowdControls.Add(FCrowdControlInformation(EBaseCrowdControl::Slow, SlowDuration, MovementSpeedSlow));
-			DamageInfomation.AddDamage(EDamageType::Magic, 0);
+			UParticleSystem* UltimateSlowed = GetOrLoadParticle(TEXT("UltimateSlowed"), TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_Ultimate_Slowed.P_Aurora_Ultimate_Slowed"));
+			if (UltimateSlowed)
+			{
+				SpawnAttachedParticleAtLocation_Server(UltimateSlowed, Character->GetMesh(), FTransform(FRotator(0), GetMesh()->GetSocketLocation(FName("Root")), FVector(1)), EAttachLocation::KeepWorldPosition);
+			}
 
-			ApplyDamage_Server(Character, DamageInfomation, GetController(), this);
+			FCrowdControlInformation CrowdControlInformation;
+			CrowdControlInformation.Type = EBaseCrowdControl::Slow;
+			CrowdControlInformation.Duration = SlowDuration;
+			CrowdControlInformation.Percent = MovementSpeedSlow;
 
+			ApplyCrowdControl_Server(Character, CrowdControlInformation);
+			
 			FrozenEnemies.Add(Character);
 		}
 	}
 
-	const float ExplodeTime = UniqueAttributes.Contains("ExplodeTime") ? UniqueAttributes["ExplodeTime"] : 2.0f;
+	const float ExplodeTime = GetUniqueAttribute(EAbilityID::Ability_R, "ExplodeTime", 2.0f);
 	const int32 TimerID = static_cast<uint32>(EAbilityID::Ability_R);
 
 	// 폭발 타이머 설정
-	auto TimerCallback = [this, TimerID, AbilityStatTable, UniqueAttributes, FrozenEnemies]()
+	auto TimerCallback = [this, TimerID, StatTable, FrozenEnemies]()
 		{
 			// 데미지 계산
 			const float Character_AttackDamage = StatComponent->GetAttackDamage();
 			const float Character_AbilityPower = StatComponent->GetAbilityPower();
 
-			const float BaseAttackDamage = AbilityStatTable.AttackDamage;
-			const float BaseAbilityDamage = AbilityStatTable.AbilityDamage;
-			const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
-			const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
+			const float BaseAttackDamage = StatTable.AttackDamage;
+			const float BaseAbilityDamage = StatTable.AbilityDamage;
+			const float AD_PowerScaling = StatTable.AD_PowerScaling;
+			const float AP_PowerScaling = StatTable.AP_PowerScaling;
 
-			const float HeroShatterAbilityDamage = UniqueAttributes.Contains("HeroShatterAbilityDamage") ? UniqueAttributes["HeroShatterAbilityDamage"] : 0.f;
-			const float NonHeroShatterAbilityDamage = UniqueAttributes.Contains("NonHeroShatterAbilityDamage") ? UniqueAttributes["NonHeroShatterAbilityDamage"] : 0.f;
-			const float InitialPowerScaling = UniqueAttributes.Contains("InitialPowerScaling") ? UniqueAttributes["InitialPowerScaling"] : 0.f;
-			const float PowerScalingOnHero = UniqueAttributes.Contains("PowerScalingOnHero") ? UniqueAttributes["PowerScalingOnHero"] : 0.f;
-			const float PowerScalingOnNonHero = UniqueAttributes.Contains("PowerScalingOnNonHero") ? UniqueAttributes["PowerScalingOnNonHero"] : 0.f;
-			const float ChainRadius = UniqueAttributes.Contains("ChainRadius") ? UniqueAttributes["ChainRadius"] : 500.f;
-			const float StunDuration = UniqueAttributes.Contains("StunDuration") ? UniqueAttributes["StunDuration"] : 1.f;
+			const float HeroShatterAbilityDamage = GetUniqueAttribute(EAbilityID::Ability_R, "HeroShatterAbilityDamage", 0.f);
+			const float NonHeroShatterAbilityDamage = GetUniqueAttribute(EAbilityID::Ability_R, "NonHeroShatterAbilityDamage", 0.f);
+			const float InitialPowerScaling = GetUniqueAttribute(EAbilityID::Ability_R, "InitialPowerScaling", 0.f);
+			const float PowerScalingOnHero = GetUniqueAttribute(EAbilityID::Ability_R, "PowerScalingOnHero", 0.f);
+			const float PowerScalingOnNonHero = GetUniqueAttribute(EAbilityID::Ability_R, "PowerScalingOnNonHero", 0.f); 
+			const float ChainRadius = GetUniqueAttribute(EAbilityID::Ability_R, "ChainRadius", 500.f);
+			const float StunDuration = GetUniqueAttribute(EAbilityID::Ability_R, "StunDuration", 1.f);
 
 			float FinalDamage = 0;
 
@@ -910,12 +784,18 @@ void AAuroraCharacter::Ability_R_CheckHit()
 
 				FinalDamage = BaseAbilityDamage + Character_AbilityPower * InitialPowerScaling;
 
-				FDamageInfomation DamageInfomation;
-				DamageInfomation.AbilityID = EAbilityID::Ability_R;
-				DamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
-				DamageInfomation.CrowdControls.Add(FCrowdControlInformation(EBaseCrowdControl::Stun, StunDuration));
+				FDamageInformation DamageInformation;
+				DamageInformation.AbilityID = EAbilityID::Ability_R;
+				DamageInformation.AddDamage(EDamageType::Magic, FinalDamage);
+				
 
-				ApplyDamage_Server(FrozenEnemy, DamageInfomation, GetController(), this);
+				ApplyDamage_Server(FrozenEnemy, DamageInformation, GetController(), this);
+
+				UParticleSystem* UltimateExplode = GetOrLoadParticle(TEXT("UltimateExplode"), TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_Ultimate_Explode.P_Aurora_Ultimate_Explode"));
+				UParticleSystem* UltimateFrozen = GetOrLoadParticle(TEXT("UltimateFrozen"), TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Ultimate/FX/P_Aurora_Ultimate_Frozen.P_Aurora_Ultimate_Frozen"));
+
+				if (UltimateExplode) SpawnAttachedParticleAtLocation_Server(UltimateExplode, FrozenEnemy->GetMesh(), FrozenEnemy->GetMesh()->GetSocketTransform(FName("Root")), EAttachLocation::KeepWorldPosition);
+				if (UltimateFrozen)	SpawnAttachedParticleAtLocation_Server(UltimateFrozen, FrozenEnemy->GetMesh(), FrozenEnemy->GetMesh()->GetSocketTransform(FName("Root")), EAttachLocation::KeepWorldPosition);
 
 				// 연쇄 폭발 처리
 				TArray<FOverlapResult> ChainHits;
@@ -943,11 +823,11 @@ void AAuroraCharacter::Ability_R_CheckHit()
 							FinalDamage = (BaseAbilityDamage + Character_AbilityPower * PowerScalingOnHero) + HeroShatterAbilityDamage;
 						}
 
-						FDamageInfomation ChainDamageInfomation;
+						FDamageInformation ChainDamageInfomation;
 						ChainDamageInfomation.AbilityID = EAbilityID::Ability_R;
 						ChainDamageInfomation.AddDamage(EDamageType::Magic, FinalDamage);
 
-						ApplyDamage_Server(FrozenEnemy, DamageInfomation, GetController(), this);
+						ApplyDamage_Server(FrozenEnemy, DamageInformation, GetController(), this);
 					}
 				}
 			}
@@ -974,94 +854,86 @@ void AAuroraCharacter::Ability_R_CheckHit()
 
 void AAuroraCharacter::Ability_LMB_CheckHit()
 {
-	if (::IsValid(this))
+	if (!::IsValid(this) || !::IsValid(CurrentTarget))
 	{
-		FVector CollisionBoxSize = FVector(150.0f, 100.0f, 110.0f);
-		FVector CharacterForwadVector = GetActorForwardVector();
-		FCollisionQueryParams params(NAME_None, false, this);
+		return;
+	}
 
-		OutHits.Empty();
+	ACharacterBase* TargetCharacter = Cast<ACharacterBase>(CurrentTarget);
+	if (!::IsValid(TargetCharacter))
+	{
+		return;
+	}
 
-		bool bResult = GetWorld()->OverlapMultiByChannel(
-			OutHits,
-			GetActorLocation() + 120.f * CharacterForwadVector,
-			FRotationMatrix::MakeFromZ(CharacterForwadVector).ToQuat(),
-			ECC_GameTraceChannel3,
-			FCollisionShape::MakeBox(CollisionBoxSize),
-			params
-		);
+	// 적팀일 경우에만 데미지 적용.
+	if (TargetCharacter->TeamSide != this->TeamSide)
+	{
+		const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_LMB);
 
-		if (bResult)
+		const float Character_AttackDamage = StatComponent->GetAttackDamage();
+		const float Character_AbilityPower = StatComponent->GetAbilityPower();
+
+		const float BaseAttackDamage = AbilityStatTable.AttackDamage;
+		const float BaseAbilityPower = AbilityStatTable.AbilityDamage;
+		const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
+		const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
+
+		const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
+
+		FDamageInformation DamageInformation;
+		DamageInformation.AbilityID = EAbilityID::Ability_LMB;
+		EnumAddFlags(DamageInformation.AttackEffect, EAttackEffect::OnHit);
+		EnumAddFlags(DamageInformation.AttackEffect, EAttackEffect::OnAttack);
+		DamageInformation.AddDamage(EDamageType::Physical, FinalDamage);
+
+		ApplyDamage_Server(TargetCharacter, DamageInformation, GetController(), this);
+
+		/* Spawn HitSuccessImpact */
+		UParticleSystem* MeleeSuccessImpact = GetOrLoadParticle("MeleeSuccessImpact", TEXT("/Game/Paragon/ParagonAurora/FX/Particles/Abilities/Primary/FX/P_Aurora_Melee_SucessfulImpact.P_Aurora_Melee_SucessfulImpact"));
+		if (MeleeSuccessImpact)
 		{
-			for (const auto& OutHit : OutHits)
-			{
-				if (::IsValid(OutHit.GetActor()) == false)
-				{
-					continue;
-				}
-
-				UKismetSystemLibrary::PrintString(this, FString::Printf(TEXT("Hit Actor Name: %s"), *OutHit.GetActor()->GetName()));
-
-				ACharacterBase* Character = Cast<ACharacterBase>(OutHit.GetActor());
-				if (::IsValid(Character) == false)
-				{
-					return;
-				}
-
-				// 적팀일 경우에만 데미지 적용.
-				if (Character->TeamSide != this->TeamSide)
-				{
-					const FAbilityStatTable& AbilityStatTable = AbilityStatComponent->GetAbilityStatTable(EAbilityID::Ability_LMB);
-
-					const float Character_AttackDamage = StatComponent->GetAttackDamage();
-					const float Character_AbilityPower = StatComponent->GetAbilityPower();
-
-					const float BaseAttackDamage = AbilityStatTable.AttackDamage;
-					const float BaseAbilityPower = AbilityStatTable.AbilityDamage;
-					const float AD_PowerScaling = AbilityStatTable.AD_PowerScaling;
-					const float AP_PowerScaling = AbilityStatTable.AP_PowerScaling;
-
-					const float FinalDamage = (BaseAttackDamage + Character_AttackDamage * AD_PowerScaling) + (BaseAbilityPower + Character_AbilityPower * AP_PowerScaling);
-
-					FDamageInfomation DamageInfomation;
-					DamageInfomation.AbilityID = EAbilityID::Ability_LMB;
-					EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::OnHit);
-					EnumAddFlags(DamageInfomation.AttackEffect, EAttackEffect::OnAttack);
-					DamageInfomation.AddDamage(EDamageType::Physical, FinalDamage);
-
-					ApplyDamage_Server(Character, DamageInfomation, GetController(), this);
-
-					/* Spawn HitSuccessImpact */
-					FTransform transform(FRotator(0), Character->GetMesh()->GetSocketLocation("Impact"), FVector(1));
-					SpawnRootedParticleAtLocation_Server(MeleeSuccessImpact, transform);
-				}
-			}
+			FTransform transform(FRotator(0), TargetCharacter->GetMesh()->GetSocketLocation("Impact"), FVector(1));
+			SpawnRootedParticleAtLocation_Server(MeleeSuccessImpact, transform);
 		}
-
-#pragma region CollisionDebugDrawing
-		FVector TraceVec = CharacterForwadVector * 200;
-		FVector Center = GetActorLocation() + 120.f * CharacterForwadVector;
-		float HalfHeight = 100.f;
-		FQuat BoxRot = FRotationMatrix::MakeFromZ(CharacterForwadVector).ToQuat();
-		FColor DrawColor = true == bResult ? FColor::Green : FColor::Red;
-		float DebugLifeTime = 5.f;
-
-		DrawDebugBox(
-			GetWorld(),
-			Center,
-			CollisionBoxSize,
-			BoxRot,
-			DrawColor,
-			false,
-			DebugLifeTime
-		);
-#pragma endregion
 	}
 }
 
-void AAuroraCharacter::Ability_RMB_CheckHit()
+void AAuroraCharacter::CancelAbility()
 {
-	OutHits.Empty();
+	if (EnumHasAnyFlags(CharacterState, EBaseCharacterState::Ability_E))
+	{
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::Ability_E);
+		bSmoothMovement = false;
+		bIsDashing = false;
+	}
+}
+
+void AAuroraCharacter::Ability_E_Canceled()
+{
+	if (::IsValid(AnimInstance) == false)
+	{
+		return;
+	}
+
+	bSmoothMovement = false;
+	bIsDashing = false;
+
+	StopAllMontages_Server(0.2, true);
+}
+
+void AAuroraCharacter::Ability_LMB_Canceled()
+{
+	if (::IsValid(AnimInstance) == false)
+	{
+		return;
+	}
+
+	StopAllMontages_Server(0.2, true);
+}
+
+void AAuroraCharacter::Ability_RMB_Canceled()
+{
+
 }
 
 void AAuroraCharacter::OnPreDamageReceived(float FinalDamage)
@@ -1072,26 +944,15 @@ void AAuroraCharacter::OnPreDamageReceived(float FinalDamage)
 
 void AAuroraCharacter::ExecuteSomethingSpecial()
 {
-	GetCrowdControl(EBaseCrowdControl::Blind, 2.0);
-}
+	UKismetSystemLibrary::PrintString(GetWorld(), TEXT("[AAuroraCharacter::ExecuteSomethingSpecial] ExecuteSomethingSpecial function called."), true, true, FLinearColor::Red, 2.0f, NAME_None);
+	UKismetSystemLibrary::PrintString(GetWorld(), FString::Printf(TEXT("[AAuroraCharacter::ExecuteSomethingSpecial] Before Movementspeed: %f."), StatComponent->GetMovementSpeed()), true, true, FLinearColor::Red, 2.0f, NAME_None);
 
-void AAuroraCharacter::MontageEnded(UAnimMontage* Montage, bool bInterrupted)
-{
-	if (Montage == Ability_LMB_Montage)
-	{
+	FDamageInformation DamageInformation;
+	DamageInformation.AbilityID = EAbilityID::None;
+	DamageInformation.CrowdControls.Add(FCrowdControlInformation(EBaseCrowdControl::Stun, 5.0f, 0.0f));
 
-	}
-	else if (Montage == Ability_E_Montage)
-	{
-		bUseControllerRotationYaw = true;
-	}
-	else
-	{
-		/*ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::Move);
-		ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::Jump);
-		ModifyCharacterState(ECharacterStateOperation::Add, EBaseCharacterState::SwitchAction);
-		ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::AbilityUsed);*/
-	}
+	ApplyDamage_Server(this, DamageInformation, GetController(), this);
+	UKismetSystemLibrary::PrintString(GetWorld(), FString::Printf(TEXT("[AAuroraCharacter::ExecuteSomethingSpecial] After Movementspeed: %f."), StatComponent->GetMovementSpeed()), true, true, FLinearColor::Red, 2.0f, NAME_None);
 }
 
 void AAuroraCharacter::Ability_LMB_AttackEnded()
@@ -1104,7 +965,7 @@ void AAuroraCharacter::Ability_LMB_AttackEnded()
 	}
 
 	AnimInstance->StopAllMontages(0.2f);
-	StopAllMontages_Server(0.2);
+	StopAllMontages_Server(0.2, false);
 }
 
 void AAuroraCharacter::SetMovementSpeed_Server_Implementation(const float InMaxWalkSpeed, const float InMaxAcceleration)
@@ -1117,15 +978,15 @@ void AAuroraCharacter::SetMovementSpeed_Server_Implementation(const float InMaxW
 	}
 }
 
-void AAuroraCharacter::SpawnFreezeSegments_Server_Implementation(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInfomation DamageInfomation)
+void AAuroraCharacter::SpawnFreezeSegments_Server_Implementation(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInformation DamageInformation)
 {
 	if (HasAuthority())
 	{
-		SpawnFreezeSegments_Multicast(Transform, ParticleInfo, DamageInfomation);
+		SpawnFreezeSegments_Multicast(Transform, ParticleInfo, DamageInformation);
 	}
 }
 
-void AAuroraCharacter::SpawnFreezeSegments_Multicast_Implementation(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInfomation DamageInfomation)
+void AAuroraCharacter::SpawnFreezeSegments_Multicast_Implementation(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInformation DamageInformation)
 {
 	if (HasAuthority())
 	{
@@ -1141,7 +1002,7 @@ void AAuroraCharacter::SpawnFreezeSegments_Multicast_Implementation(FTransform T
 	AFreezeSegment* NewParticleActor = Cast<AFreezeSegment>(UGameplayStatics::BeginDeferredActorSpawnFromClass(GetWorld(), FreezeSegmentClass, Transform, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn, this));
 	if (NewParticleActor != nullptr)
 	{
-		NewParticleActor->InitializeParticle(ParticleInfo.Radius, ParticleInfo.NumParicles, ParticleInfo.Lifetime, ParticleInfo.Rate, ParticleInfo.Scale, DamageInfomation);
+		NewParticleActor->InitializeParticle(ParticleInfo.Radius, ParticleInfo.NumParicles, ParticleInfo.Lifetime, ParticleInfo.Rate, ParticleInfo.Scale, DamageInformation);
 		UGameplayStatics::FinishSpawningActor(NewParticleActor, Transform);
 	}
 }
@@ -1173,57 +1034,100 @@ bool AAuroraCharacter::ValidateAbilityUsage()
 	return false;
 }
 
-void AAuroraCharacter::PlayeAbilityMontage(UAnimMontage* Montage, float PlayRate)
+void AAuroraCharacter::OnAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
 {
-	if (::IsValid(Montage) == false)
+	if (!HasAuthority())
 	{
 		return;
 	}
 
-	if (::IsValid(AnimInstance) == false)
-	{
-		return;
-	}
+	Super::OnAbilityUse(AbilityID, TriggerEvent);
 
-	AnimInstance->PlayMontage(Montage, PlayRate);
-	PlayMontage_Server(Montage, PlayRate);
-}
-
-void AAuroraCharacter::ServerNotifyAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent)
-{
-	Super::ServerNotifyAbilityUse(AbilityID, TriggerEvent);
-
-	EBaseCharacterState NewState = CharacterState;
-
-	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::ServerNotifyAbilityUse Before CharacterState"));
+	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::OnAbilityUse Before CharacterState"));
 
 	switch (AbilityID)
 	{
-	case EAbilityID::Ability_Q:
-	case EAbilityID::Ability_E:
-	case EAbilityID::Ability_R:
-	case EAbilityID::Ability_RMB:
-		EnumRemoveFlags(NewState, EBaseCharacterState::Move);
-		EnumRemoveFlags(NewState, EBaseCharacterState::SwitchAction);
-		EnumAddFlags(NewState, EBaseCharacterState::AbilityUsed);
-		break;
 	case EAbilityID::Ability_LMB:
-		EnumRemoveFlags(NewState, EBaseCharacterState::SwitchAction);
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_LMB);
+		break;
+	case EAbilityID::Ability_Q:
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+		EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_Q);
+		break;
+	case EAbilityID::Ability_E:
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+		EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_E);
+		break;
+	case EAbilityID::Ability_R:
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+		EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_R);
+		break;
+	case EAbilityID::Ability_RMB:
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::Move);
+		EnumRemoveFlags(CharacterState, EBaseCharacterState::SwitchAction);
+		EnumAddFlags(CharacterState, EBaseCharacterState::AbilityUsed);
+		EnumAddFlags(CharacterState, EBaseCharacterState::Ability_RMB);
 		break;
 	default:
 		UE_LOG(LogTemp, Warning, TEXT("Unknown AbilityID: %d"), static_cast<int32>(AbilityID));
 		break;
 	}
 
-	CharacterState = NewState;
-	SetCharacterState(static_cast<uint32>(NewState));
+	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::OnAbilityUse After CharacterState"));
+}
 
-	UpdateCharacterState(ReplicatedCharacterState);
-	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::ServerNotifyAbilityUse After CharacterState"));
+void AAuroraCharacter::MontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage == nullptr)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MontageEnded called with null Montage"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("MontageEnded: Montage '%s' ended. Interrupted: %s on %s"), *Montage->GetName(), bInterrupted ? TEXT("True") : TEXT("False"), HasAuthority() ? TEXT("server") : TEXT("client"));
+
+	if (!HasAuthority() && GetController() == UGameplayStatics::GetPlayerController(GetWorld(), 0))
+	{
+		if (Montage->GetName().Equals(TEXT("Ability_Q_Montage")))
+		{
+			ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Ability_Q);
+		}
+		else if (Montage->GetName().Equals(TEXT("Ability_E_Montage")))
+		{
+			bUseControllerRotationYaw = true;
+			ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Ability_E);
+		}
+		else if (Montage->GetName().Equals(TEXT("Ability_R_Montage")))
+		{
+			ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Ability_R);
+		}
+		else if (Montage->GetName().Equals(TEXT("Ability_LMB_Montage")))
+		{
+			ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Ability_LMB);
+		}
+		else if (Montage->GetName().Equals(TEXT("Ability_RMB_Montage")))
+		{
+			ModifyCharacterState(ECharacterStateOperation::Remove, EBaseCharacterState::Ability_RMB);
+		}
+	}
+
+	LogCharacterState(CharacterState, TEXT("AAuroraCharacter::MontageEnded After CharacterState"));
 }
 
 void AAuroraCharacter::OnRep_CharacterStateChanged()
 {
 	Super::OnRep_CharacterStateChanged();
+
+}
+
+void AAuroraCharacter::OnRep_CrowdControlStateChanged()
+{
 
 }

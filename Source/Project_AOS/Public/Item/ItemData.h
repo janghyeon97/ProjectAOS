@@ -80,6 +80,7 @@ struct FItemInformation
 
 public:
 	FItemInformation();
+	~FItemInformation();
 
 	using StatGetter = float(UStatComponent::*)() const;
 
@@ -97,6 +98,7 @@ private:
 
 	TMap<FString, float(UStatComponent::*)() const> StatGetters;
 	TMap<FString, int32(UStatComponent::*)() const> StatGettersInt;
+
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ItemInfo")

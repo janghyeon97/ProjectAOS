@@ -8,13 +8,6 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 
-const float ABaseAIController::PatrolRepeatInterval(3.f);
-const float ABaseAIController::PatrolRadius(500.f);
-const FName ABaseAIController::StartPatrolPositionKey(TEXT("StartPatrolPosition"));
-const FName ABaseAIController::EndPatrolPositionKey(TEXT("EndPatrolPosition"));
-const FName ABaseAIController::TargetActorKey(TEXT("TargetActor"));
-const FName ABaseAIController::IsPlayerDetectedKey(TEXT("IsPlayerDetected"));
-const FName ABaseAIController::IsGetCrowdControl(TEXT("IsGetCrowdControl"));
 
 ANPCAIController::ANPCAIController()
 {
@@ -36,7 +29,7 @@ void ANPCAIController::BeginAI(APawn* InPawn)
 		{
 			bool bRunSucceed = RunBehaviorTree(BehaviorTree);
 			ensure(bRunSucceed == true);
-			BlackboardComponent->SetValueAsVector(StartPatrolPositionKey, InPawn->GetActorLocation());
+			BlackboardComponent->SetValueAsVector(StartPositionKey, InPawn->GetActorLocation());
 		}
 	}
 }
@@ -61,7 +54,7 @@ void ANPCAIController::OnPatrolTimerElapsed()
 		if (::IsValid(NavSystem))
 		{
 			FNavLocation NextLocation;
-			if (true == NavSystem->GetRandomPointInNavigableRadius(FVector::ZeroVector, PatrolRadius, NextLocation))
+			if (true == NavSystem->GetRandomPointInNavigableRadius(FVector::ZeroVector, 500.f, NextLocation))
 			{
 				UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, NextLocation.Location);
 			}

@@ -23,7 +23,8 @@ AAOSPlayerState::AAOSPlayerState()
     SelectedChampionIndex = -1;
     AbilityPoints = 0;
     Currency = 10000;
-    PlayerUniqueID = FString();
+    PlayerUniqueID = NAME_None;
+    SelectedChampionName = NAME_None;
 
     Inventory.SetNum(MaxInventorySize);
 }
@@ -55,13 +56,13 @@ void AAOSPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 
 // Accessors
 
-FString AAOSPlayerState::GetPlayerUniqueID() const
+FName AAOSPlayerState::GetPlayerUniqueID() const
 {
     if (GetUniqueId().IsValid() && GetUniqueId()->IsValid())
     {
-        return GetUniqueId()->ToString();
+        return FName(*GetUniqueId()->ToString());
     }
-    return FString();
+    return FName();
 }
 
 // Inventory Management

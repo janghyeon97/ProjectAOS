@@ -20,13 +20,13 @@ public:
 
 	void InitializePlayerList();
 	void InitializeChampionList();
-	void AddChampionListEntry(int32 Index, const FString& InChampionName, UTexture* Texture);
+	void AddChampionListEntry(int32 Index, const FName& InChampionName, UTexture* Texture);
 
-	void AddPlayerSelection(ETeamSideBase Team, const FString& InPlayerName);
-	void AddPlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, TArray<TObjectPtr<UWidget>>& TeamWidgets, uint8& CurrentIndex, const FString& InPlayerName);
+	void AddPlayerSelection(ETeamSideBase Team, const FName& InPlayerName);
+	void AddPlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, TArray<TObjectPtr<UWidget>>& TeamWidgets, uint8& CurrentIndex, const FName& InPlayerName);
 
-	void UpdatePlayerSelection(ETeamSideBase Team, const int32 PlayerIndex, const FString& InPlayerName, UTexture* Texture, const FString& InChampionName, const FString& InChampionPosition, FLinearColor Color, bool bShowChampionDetails);
-	void UpdatePlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, const int32 PlayerIndex, const FString& InPlayerName, UTexture* Texture, const FString& InChampionName, const FString& InChampionPosition, FLinearColor Color, bool bShowChampionDetails);
+	void UpdatePlayerSelection(ETeamSideBase Team, const int32 PlayerIndex, const FName& InPlayerName, UTexture* Texture, const FName& InChampionName, const FName& InChampionPosition, FLinearColor Color, bool bShowChampionDetails);
+	void UpdatePlayerSelectionUI(TArray<TObjectPtr<UUW_ChampionSelection>>& TeamPlayers, const int32 PlayerIndex, const FName& InPlayerName, UTexture* Texture, const FName& InChampionName, const FName& InChampionPosition, FLinearColor Color, bool bShowChampionDetails);
 
 	void UpdateInfomationText(const FString& String);
 	void OnBanPickTimeChanged(float CurrentTime, float MaxTime);

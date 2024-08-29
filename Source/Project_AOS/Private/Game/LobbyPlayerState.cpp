@@ -10,7 +10,8 @@ ALobbyPlayerState::ALobbyPlayerState()
 	TeamSide = ETeamSideBase::Type;
 	PlayerIndex = -1;
 	SelectedChampionIndex = -1;
-	PlayerUniqueID = FString();
+	SelectedChampionName = NAME_None;
+	PlayerUniqueID = NAME_None;
 }
 
 void ALobbyPlayerState::BeginPlay()
@@ -30,20 +31,22 @@ void ALobbyPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(ThisClass, TeamSide);
 	DOREPLIFETIME(ThisClass, PlayerIndex);
 	DOREPLIFETIME(ThisClass, SelectedChampionIndex);
-	DOREPLIFETIME(ThisClass, PlayerUniqueID);
+	DOREPLIFETIME(ThisClass, PlayerUniqueID); 
+	DOREPLIFETIME(ThisClass, SelectedChampionName);
 }
 
-void ALobbyPlayerState::UpdateSelectedChampion_Server_Implementation(int32 Index)
+void ALobbyPlayerState::UpdateSelectedChampion_Server_Implementation(const int32 Index, const FName& InName)
 {
 	SelectedChampionIndex = Index;
+	SelectedChampionName = InName;
 }
 
-FString ALobbyPlayerState::GetPlayerUniqueIdString() const
+FName ALobbyPlayerState::GetPlayerUniqueIdString() const
 {
 	if (GetUniqueId().IsValid() && GetUniqueId()->IsValid())
 	{
-		return GetUniqueId()->ToString();
+		return FName(*GetUniqueId()->ToString());
 	}
-	return FString();
+	return FName();
 }
 

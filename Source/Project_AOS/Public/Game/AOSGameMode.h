@@ -1,9 +1,9 @@
-// 프로젝트 설정의 저작권 공지를 Description 페이지에 작성하십시오.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "Structs/CharacterResources.h"
 #include "Structs/EnumTeamSide.h"
 #include "Structs/EnumCharacterType.h"
 #include "Structs/MinionData.h"
@@ -45,18 +45,23 @@ public:
 	void AddCurrencyToPlayer(ACharacterBase* Character, int32 Amount);
 	void AddExpToPlayer(ACharacterBase* Character, int32 Amount);
 
+	int32 GetInitialCharacterLevel() const { return InitialCharacterLevel; };
+
 private:
 	void LoadGameData();
 	void LoadItemData();
 	void LoadPlayerData();
 	void LoadMinionData();
+	FCharacterGamePlayDataRow CacheCharacterResources(UDataTable* ResourcesTable);
 
 	void StartGame();
-	void SpawnMinion(EMinionType MinionType);
-	void SpawnCharacter(AAOSPlayerController* PlayerController, int32 CharacterIndex, ETeamSideBase Team);
+	void SpawnMinionsForLane(const FName& Lane);
+	void SpawnMinion(EMinionType MinionType, const FString& Lane, ETeamSideBase Team);
+	void SpawnCharacter(AAOSPlayerController* PlayerController, const FName& ChampionRowName, ETeamSideBase Team, const int32 PlayerIndex);
 	void RespawnCharacter(AAOSPlayerController* PlayerController);
 	void CheckAllPlayersLoaded();
 	void FindPlayerStart();
+	void FindSplinePath();
 	void SendLoadedItemsToClients();
 	void IncrementPlayerCurrency();
 	float CalculateRespawnTime(AAOSCharacterBase* Character) const;
@@ -67,59 +72,45 @@ private:
 	void BroadcastRemainingRespawnTime(int32 PlayerIndex, float RemainingTime) const;
 	float GetTimerRemaining(const TMap<int32, FTimerHandle>& Timers, int32 TimerID) const;
 
-public:
-	UPROPERTY()
-	uint8 NumberOfPlayer = 1; // 게임 내 플레이어 수
-
-	UPROPERTY()
-	uint8 ConnectedPlayer; // 접속한 플레이어 수
-
-	UPROPERTY(EditDefaultsOnly, Category = "Loading")
-	float MaxLoadWaitTime = 10.f;
-
-	UPROPERTY()
-	int32 InitialCharacterLevel = 1;
-
 private:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class AAOSGameState> AOSGameState;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
-	TObjectPtr<class USkeletalMesh> WhiteMinion;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
-	TObjectPtr<class USkeletalMesh> BlackMinion;
-
-public:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess = "true"))
 	TMap<int32, AAOSPlayerController*> Players; // <PlayerIndex, AOSPlayerController>
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess = "true"))
 	TMap<AAOSPlayerController*, AAOSCharacterBase*> PlayerCharacterMap;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess = "true"))
 	TArray<TObjectPtr<AAOSPlayerController>> ExitingPlayers;
 
-	UPROPERTY(BlueprintReadOnly, Category = "GameData")
+public:
+	UPROPERTY(BlueprintReadOnly, Category = "GameData", Meta = (AllowPrivateAccess = "true"))
 	TMap<int32, class AItem*> LoadedItems;
 
-	UPROPERTY(BlueprintReadOnly, Category = "GameData")
-	TMap<EMinionType, FMinionDataTableRow> LoadedMinions;
+	UPROPERTY(BlueprintReadOnly, Category = "GameData", Meta = (AllowPrivateAccess = "true"))
+	TMap<EMinionType, FMinionDataTableRow> LoadedMinionData;
 
-	UPROPERTY(BlueprintReadOnly, Category = "GameData")
+	UPROPERTY(BlueprintReadOnly, Category = "GameData", Meta = (AllowPrivateAccess = "true"))
 	FGameDataTableRow LoadedGameData;
 
-private:
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AOSGameMode", Meta = (AllowPrivateAccess = "true"))
 	class UDataTable* ItemDataTable;
 
-	UPROPERTY()
-	TArray<AActor*> BlueTeamPlayerStart;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AOSGameMode", Meta = (AllowPrivateAccess = "true"))
+	TMap<FString, AActor*> SplinePaths;
 
-	UPROPERTY()
-	TArray<AActor*> RedTeamPlayerStart;
+private:
+	float MaxLoadWaitTime = 10.f;
+	uint8 NumberOfPlayer = 1; // 게임 내 플레이어 수
+	uint8 ConnectedPlayer; // 접속한 플레이어 수
+	int32 InitialCharacterLevel = 1;
 
-	TArray<AActor*> PlayerStart;
+	FName DefaultCharacter = "Sparrow";
+
+	TMap<FName, APlayerStart*> PlayerStarts;
+	TMap<FName, APlayerStart*> MinionStarts;
 
 	TMap<int32, FTimerHandle> GameTimers;					// <TimerID, TimerHandle>
 	TMap<int32, FTimerHandle> RespawnTimers;				// <PlayerIndex, TimerHandle>
@@ -127,16 +118,17 @@ private:
 	TMap<int32, FTimerHandle> BroadcastRespawnTimerHandles;	// <PlayerIndex, TimerHandle>
 
 	FTimerHandle CurrencyIncrementTimerHandle;
-	FTimerHandle ActivateSpawnMinionTimerHandle;
-	FTimerHandle SpawnMinionTimerHandle;
+	FTimerHandle MinionSpawnTimerHandle;
+	FTimerHandle MinionSpawnTimerHandle2;
 	FTimerHandle LoadTimerHandle;
 
-	int32 IncrementCurrencyAmount = 1;
+	int32 SpawnCount = 0;
 	int32 NumberOfBlueTeam = 0;
 	int32 NumberOfRedTeam = 0;
 
-	const float MinionSpawnTime = 100000.f;
-	const float MinionSpawnInterval = 15.f;
+	// 클래스 수준의 캐시된 리소스
+	static TMap<EMinionType, FCharacterGamePlayDataRow> CachedCharacterResources;
 
-
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "CrowdControl", meta = (AllowPrivateAccess = "true"))
+	class UCrowdControlManager* CrowdControlManager;
 };

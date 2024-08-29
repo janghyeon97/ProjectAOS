@@ -28,7 +28,7 @@ AFreezeSegment::AFreezeSegment()
 	Scale = 0.8f;
 }
 
-void AFreezeSegment::InitializeParticle(float InRadius, int32 InNumParicles, int32 InLifetime, float InRate, float InScale, FDamageInfomation InDamageInfomation)
+void AFreezeSegment::InitializeParticle(float InRadius, int32 InNumParicles, int32 InLifetime, float InRate, float InScale, FDamageInformation InDamageInfomation)
 {
 	// 설정된 값들을 멤버 변수에 저장
 	Radius = InRadius;
@@ -36,7 +36,7 @@ void AFreezeSegment::InitializeParticle(float InRadius, int32 InNumParicles, int
 	Lifetime = InLifetime;
 	Rate = InRate;
 	Scale = InScale;
-	DamageInfomation = InDamageInfomation;
+	DamageInformation = InDamageInfomation;
 }
 
 
@@ -169,7 +169,7 @@ void AFreezeSegment::ApplyDamage(AActor* OtherActor)
 	ACharacterBase* Character = Cast<ACharacterBase>(OtherActor);
 	if (::IsValid(Character))
 	{
-		OwnerCharacter->ApplyDamage_Server(Character, DamageInfomation, OwnerCharacter->GetController(), OwnerCharacter.Get());
+		OwnerCharacter->ApplyDamage_Server(Character, DamageInformation, OwnerCharacter->GetController(), OwnerCharacter.Get());
 	}
 }
 

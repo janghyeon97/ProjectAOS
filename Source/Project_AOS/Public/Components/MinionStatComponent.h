@@ -7,6 +7,9 @@
 #include "Structs/EnumMinionType.h"
 #include "MinionStatComponent.generated.h"
 
+
+class ICharacterDataProviderInterface;
+
 /**
  * 
  */
@@ -18,10 +21,10 @@ class PROJECT_AOS_API UMinionStatComponent : public UStatComponent
 public:
     UMinionStatComponent();
 
-    virtual void InitializeStatComponent(EMinionType MinionType);
+    virtual void InitStatComponent(ICharacterDataProviderInterface* DataProvider, const FName& RowName) override;
 
 private:
-    void UpdateStatsBasedOnElapsedTime(EMinionType MinionType);
+    void UpdateStatsBasedOnElapsedTime(const FName& RowName);
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Time", meta = (AllowPrivateAccess))
     float ElapsedTime;

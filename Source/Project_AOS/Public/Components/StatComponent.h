@@ -45,6 +45,30 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMovementSpeedChangedDelegate, fl
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterStatReplicatedDelegate);
 #pragma endregion
 
+UENUM(BlueprintType)
+enum class ECharacterStatType : uint8
+{
+	MaxHealth,
+	CurrentHealth,
+	MaxMana,
+	CurrentMana,
+	HealthRegeneration,
+	ManaRegeneration,
+	AttackDamage,
+	AbilityPower,
+	DefensePower,
+	MagicResistance,
+	AttackSpeed,
+	AbilityHaste,
+	CriticalChance,
+	MovementSpeed,
+};
+
+
+struct FStatTableRow;
+class ICharacterDataProviderInterface;
+
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_AOS_API UStatComponent : public UActorComponent
 {
@@ -53,19 +77,39 @@ class PROJECT_AOS_API UStatComponent : public UActorComponent
 public:	
 	UStatComponent();
 
-	void ForceReplication();
-
 	virtual void BeginPlay() override;
 	virtual void InitializeComponent() override;
-	virtual void InitializeStatComponent(const int32 InChampionIndex);
+	virtual void InitStatComponent(ICharacterDataProviderInterface* InDataProvider, const FName& InRowName);
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override; 
+
+	void RecalculateStats();
+	int32 ApplyFlatBuff(ECharacterStatType StatType, float FlatChange, float Duration);
+	int32 ApplyPercentBuff(ECharacterStatType StatType, float PercentChange, float Duration);
+	void RemoveBuff(int32 BuffIndex);
+	void RemovePercentBuff(int32 BuffIndex);
 
 public:
 	UFUNCTION(Server, Reliable)
 	void OnHUDInitializationCompleted_Server();
 
 #pragma region GetterAndSetter
-	// Getter functions
+
+	// Getter functions for Base Stats
+	float GetBaseMaxHP() const { return BaseMaxHP; }
+	float GetBaseMaxMP() const { return BaseMaxMP; }
+	float GetBaseCurrentMP() const { return BaseCurrentMP; }
+	float GetBaseHealthRegeneration() const { return BaseHealthRegeneration; }
+	float GetBaseManaRegeneration() const { return BaseManaRegeneration; }
+	float GetBaseAttackDamage() const { return BaseAttackDamage; }
+	float GetBaseAbilityPower() const { return BaseAbilityPower; }
+	float GetBaseDefensePower() const { return BaseDefensePower; }
+	float GetBaseMagicResistance() const { return BaseMagicResistance; }
+	int32 GetBaseAbilityHaste() const { return BaseAbilityHaste; }
+	float GetBaseAttackSpeed() const { return BaseAttackSpeed; }
+	int32 GetBaseCriticalChance() const { return BaseCriticalChance; }
+	float GetBaseMovementSpeed() const { return BaseMovementSpeed; }
+
+	// Getter functions for Current Stats
 	float GetMaxHP() const { return MaxHP; }
 	float GetCurrentHP() const { return CurrentHP; }
 	float GetMaxMP() const { return MaxMP; }
@@ -84,14 +128,53 @@ public:
 	int32 GetCriticalChance() const { return CriticalChance; }
 	float GetMovementSpeed() const { return MovementSpeed; }
 
-	// Setter functions
+	// Getter functions for Accumulated Buffs/Items Effects
+	float GetAccumulatedPercentAttackSpeed() const { return AccumulatedPercentAttackSpeed; }
+	float GetAccumulatedFlatAttackSpeed() const { return AccumulatedFlatAttackSpeed; }
+	float GetAccumulatedPercentMovementSpeed() const { return AccumulatedPercentMovementSpeed; }
+	float GetAccumulatedFlatMovementSpeed() const { return AccumulatedFlatMovementSpeed; }
+	float GetAccumulatedFlatMaxHP() const { return AccumulatedFlatMaxHP; }
+	float GetAccumulatedFlatMaxMP() const { return AccumulatedFlatMaxMP; }
+	float GetAccumulatedFlatMaxEXP() const { return AccumulatedFlatMaxEXP; }
+	float GetAccumulatedFlatHealthRegeneration() const { return AccumulatedFlatHealthRegeneration; }
+	float GetAccumulatedFlatManaRegeneration() const { return AccumulatedFlatManaRegeneration; }
+	float GetAccumulatedFlatAttackDamage() const { return AccumulatedFlatAttackDamage; }
+	float GetAccumulatedFlatAbilityPower() const { return AccumulatedFlatAbilityPower; }
+	float GetAccumulatedFlatDefensePower() const { return AccumulatedFlatDefensePower; }
+	float GetAccumulatedFlatMagicResistance() const { return AccumulatedFlatMagicResistance; }
+	float GetAccumulatedFlatAbilityHaste() const { return AccumulatedFlatAbilityHaste; }
+	float GetAccumulatedFlatCriticalChance() const { return AccumulatedFlatCriticalChance; }
+
+	// Modify functions for Accumulated Stats
+	virtual void SetCurrentLevel(int32 InCurrentLevel);
+
+	virtual void ModifyCurrentHP(float Delta);
+	virtual void ModifyCurrentMP(float Delta);
+	virtual void ModifyCurrentEXP(float Delta);
+
+	virtual void ModifyAccumulatedFlatMaxHP(float Delta);
+	virtual void ModifyAccumulatedFlatMaxMP(float Delta);
+	virtual void ModifyAccumulatedFlatHealthRegeneration(float Delta);
+	virtual void ModifyAccumulatedFlatManaRegeneration(float Delta);
+	virtual void ModifyAccumulatedFlatAttackDamage(float Delta);
+	virtual void ModifyAccumulatedFlatAbilityPower(float Delta);
+	virtual void ModifyAccumulatedFlatDefensePower(float Delta);
+	virtual void ModifyAccumulatedFlatMagicResistance(float Delta);
+	virtual void ModifyAccumulatedFlatAbilityHaste(int32 Delta);
+	virtual void ModifyAccumulatedFlatCriticalChance(int32 Delta);
+	virtual void ModifyAccumulatedPercentAttackSpeed(float Delta);
+	virtual void ModifyAccumulatedFlatAttackSpeed(float Delta);
+	virtual void ModifyAccumulatedPercentMovementSpeed(float Delta);
+	virtual void ModifyAccumulatedFlatMovementSpeed(float Delta);
+
+protected:
+	// Setter functions for Current Stats
 	virtual void SetMaxHP(float InMaxHP);
 	virtual void SetCurrentHP(float InCurrentHP);
 	virtual void SetMaxMP(float InMaxMP);
 	virtual void SetCurrentMP(float InCurrentMP);
 	virtual void SetMaxEXP(float InMaxEXP);
 	virtual void SetCurrentEXP(float InCurrentEXP);
-	virtual void SetCurrentLevel(int32 InCurrentLevel);
 	virtual void SetHealthRegeneration(float InHealthRegeneration);
 	virtual void SetManaRegeneration(float InManaRegeneration);
 	virtual void SetAttackDamage(float InAttackDamage);
@@ -102,6 +185,7 @@ public:
 	virtual void SetAttackSpeed(float InAttackSpeed);
 	virtual void SetCriticalChance(int32 InCriticalChance);
 	virtual void SetMovementSpeed(float InMovementSpeed);
+
 #pragma endregion
 
 public:
@@ -134,7 +218,7 @@ public:
 
 	FOnCharacterStatReplicatedDelegate OnCharacterStatReplicated;
 
-private:
+protected:
 	UFUNCTION()
 	void OnRep_CharacterStatReplicated();
 
@@ -192,63 +276,170 @@ private:
 	UFUNCTION(NetMulticast, Reliable)
 	void OnMovementSpeedChanged_NetMulticast(float InOldMovementSpeed, float InNewMovementSpeed);
 
-private:	
+protected:	
 	UPROPERTY()
 	TObjectPtr<class UAOSGameInstance> GameInstance;
 
-	UPROPERTY(ReplicatedUsing = OnRep_CharacterStatReplicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	// Base Stats (기본 스탯)
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseMaxHP;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseMaxMP;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseCurrentMP;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseHealthRegeneration;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseManaRegeneration;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseAttackDamage;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseAbilityPower;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseDefensePower;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseMagicResistance;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseAttackSpeed;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float BaseMovementSpeed;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	int32 BaseAbilityHaste;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	int32 BaseCriticalChance;
+
+	// Current Stats (현재 스탯)
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float MaxHP;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float CurrentHP;
 
-	UPROPERTY(Replicated, Transient,VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float MaxMP;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float CurrentMP;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float MaxEXP;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float CurrentEXP;
 
-	UPROPERTY(Replicated, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	int32 MaxLevel;
 
-	UPROPERTY(Replicated, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	int32 CurrentLevel;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float HealthRegeneration;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float ManaRegeneration;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float AttackDamage;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float AbilityPower;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float DefensePower;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float MagicResistance;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float AttackSpeed;
 
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
-	int32 AbilityHaste;
-
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
-	int32 CriticalChance;
-
-	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Charater|Stat", Meta = (AllowPrivateAccess))
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
 	float MovementSpeed;
 
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	int32 AbilityHaste;
+
+	UPROPERTY(Replicated, Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	int32 CriticalChance;
+
+	// Accumulated Buffs/Items Effects (누적 변경값)
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatMaxHP;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatMaxMP;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatMaxEXP;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatHealthRegeneration;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatManaRegeneration;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatAttackDamage;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatAbilityPower;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatDefensePower;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatMagicResistance;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	int32 AccumulatedFlatAbilityHaste;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	int32 AccumulatedFlatCriticalChance;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedPercentAttackSpeed;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatAttackSpeed;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedPercentMovementSpeed;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Character|Stat", Meta = (AllowPrivateAccess))
+	float AccumulatedFlatMovementSpeed;
+
+protected:
+	struct FActiveBuff
+	{
+		int32 Index;                 // 구분할 수 있는 인덱스
+		ECharacterStatType StatType; // 버프가 적용된 스탯 타입
+		float ChangeAmount;          // 적용된 변경값 (예: +10, -20%)
+		FTimerHandle TimerHandle;    // 버프의 지속 시간을 관리하는 타이머 핸들
+
+		FActiveBuff(int32 InIndex, ECharacterStatType InStatType, float InChangeAmount, FTimerHandle InTimerHandle)
+			: Index(InIndex), StatType(InStatType), ChangeAmount(InChangeAmount), TimerHandle(InTimerHandle)
+		{}
+	};
+
+
+	// 현재 활성화된 버프들을 관리하는 배열
+	TArray<FActiveBuff> ActiveBuffs;
+
+	FName RowName;
 	int32 ChampionIndex = 0;
+
+	ICharacterDataProviderInterface* DataProvider;
 };

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Structs/DamageInfomationStruct.h"
+#include "Structs/CustomCombatData.h"
 #include "FreezeSegment.generated.h"
 
 UCLASS()
@@ -16,7 +16,7 @@ public:
 	AFreezeSegment();
 
 	void OnParticleEnded();
-	void InitializeParticle(float InRadius, int32 InNumParicles, int32 InLifetime, float InRate, float InScale, FDamageInfomation InDamageInfomation);
+	void InitializeParticle(float InRadius, int32 InNumParicles, int32 InLifetime, float InRate, float InScale, FDamageInformation InDamageInfomation);
 
 protected:
 	virtual void BeginPlay() override;
@@ -42,7 +42,7 @@ private:
 	UPROPERTY()
 	TSet<AActor*> ProcessedActors; // 중복 검사 방지
 
-	FDamageInfomation DamageInfomation;
+	FDamageInformation DamageInformation;
 
 private:
 	FTimerHandle ParticleTimer;

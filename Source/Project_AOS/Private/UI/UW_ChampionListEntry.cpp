@@ -27,9 +27,10 @@ void UUW_ChampionListEntry::UpdateChampionIndex(int32 Index)
 	ChampionIndex = Index;
 }
 
-void UUW_ChampionListEntry::UpdateChampionNameText(FString InString)
+void UUW_ChampionListEntry::UpdateChampionNameText(const FName& InString)
 {
-	ChampionNameText->SetText(FText::FromString(InString));
+	ChampionName = InString;
+	ChampionNameText->SetText(FText::FromName(InString));
 }
 
 void UUW_ChampionListEntry::UpdateChampionNameColor(FLinearColor InColor)
@@ -49,11 +50,6 @@ void UUW_ChampionListEntry::UpdateChampionImage(UTexture* InTexture)
 		MaterialRef = ChampionImage->GetDynamicMaterial();
 		MaterialRef->SetTextureParameterValue(FName("Image"), InTexture);
 	}
-}
-
-FString UUW_ChampionListEntry::GetChampionName() const
-{
-	return  ChampionNameText->GetText().ToString();;
 }
 
 void UUW_ChampionListEntry::OnButtonClicked()
@@ -79,21 +75,19 @@ void UUW_ChampionListEntry::OnButtonClicked()
 		return;
 	}
 
-
-	FString PlayerName = PlayerState->GetPlayerName();
+	FName PlayerName = FName(*PlayerState->GetPlayerName());
 	int32 PlayerIndex = PlayerState->PlayerIndex;
 
 	PlaySelectSound();
-	PlayerState->UpdateSelectedChampion_Server(ChampionIndex);
-	PlayerController->UpdatePlayerSelection_Server(PlayerState->TeamSide, PlayerIndex, PlayerName, ChampionIndex, FLinearColor::Blue, true);
+	PlayerState->UpdateSelectedChampion_Server(ChampionIndex, ChampionName);
+	PlayerController->UpdatePlayerSelection_Server(PlayerState->TeamSide, PlayerIndex, PlayerName, ChampionName, FLinearColor::Blue, true);
 }
 
 void UUW_ChampionListEntry::PlaySelectSound()
 {
 	// 사운드 파일 경로 생성
 	int32 RandomInt = FMath::RandRange(1, 3);
-	FString ChampionName = GetChampionName();
-	FString SoundPath = FString::Printf(TEXT("/Game/Paragon/Paragon%s/Audio/Wavs/%s_DraftSelect_0%d0.%s_DraftSelect_0%d0"), *ChampionName, *ChampionName, RandomInt, *ChampionName, RandomInt);
+	FString SoundPath = FString::Printf(TEXT("/Game/Paragon/Paragon%s/Audio/Wavs/%s_DraftSelect_0%d0.%s_DraftSelect_0%d0"), *ChampionName.ToString(), *ChampionName.ToString(), RandomInt, *ChampionName.ToString(), RandomInt);
 
 	// 사운드 로드
 	USoundBase* SelectSound = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), NULL, *SoundPath));

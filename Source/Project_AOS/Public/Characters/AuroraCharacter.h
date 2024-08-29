@@ -47,12 +47,6 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	
-private:
-	// Initialization functions
-	virtual void InitializeAbilityMontages() override;
-	virtual void InitializeAbilityParticles() override;
-	virtual void InitializeAbilityMeshes() override;
 
 protected:
 	// Utility functions
@@ -70,11 +64,13 @@ protected:
 	virtual void Ability_LMB() override;
 	virtual void Ability_RMB() override;
 
-	virtual void Ability_Q_CheckHit() override;
-	virtual void Ability_E_CheckHit() override;
+	virtual void CancelAbility();
+	virtual void Ability_E_Canceled();
+	virtual void Ability_LMB_Canceled();
+	virtual void Ability_RMB_Canceled();
+
 	virtual void Ability_R_CheckHit() override;
 	virtual void Ability_LMB_CheckHit() override;
-	virtual void Ability_RMB_CheckHit() override;
 
 	void StartComboAttack();
 	void ContinueComboAttack();
@@ -84,10 +80,9 @@ protected:
 	virtual void MontageEnded(UAnimMontage* Montage, bool bInterrupted) override;
 	virtual void OnPreDamageReceived(float FinalDamage) override;
 	virtual void OnRep_CharacterStateChanged() override;
+	virtual void OnRep_CrowdControlStateChanged() override;
 
-	void PlayeAbilityMontage(UAnimMontage* Montage, float PlayRate);
-
-	virtual void ServerNotifyAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent) override;
+	virtual void OnAbilityUse(EAbilityID AbilityID, ETriggerEvent TriggerEvent) override;
 
 private:
 	UFUNCTION(Server, Reliable, WithValidation)
@@ -105,90 +100,13 @@ private:
 	void Ability_E_Server(FVector TargetLocation);
 
 	UFUNCTION(Server, Reliable)
-	void Ability_R_Started_Server();
+	void Ability_R_Started_Server(const float BoostStrength);
 
 	UFUNCTION(Server, Reliable)
-	void SpawnFreezeSegments_Server(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInfomation DamageInfomation);
+	void SpawnFreezeSegments_Server(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInformation DamageInformation);
 
 	UFUNCTION(NetMulticast, Reliable)
-	void SpawnFreezeSegments_Multicast(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInfomation DamageInfomation);
-
-private:
-	// Particles
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* MeleeSuccessImpact;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* FreezeRooted;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* FreezeSegment;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* FreezeWhrilwind;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* SegmentCrumble;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* ScreenFrostFrozen;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* UltimateExplode;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* UltimateWarmUp;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* UltimateFrozen;
-	UPROPERTY(EditDefaultsOnly, Category = "Effects")
-	UParticleSystem* UltimateInitialBlast;
-
-	// Meshes
-	UPROPERTY(EditDefaultsOnly, Category = "Meshes")
-	UStaticMesh* ShieldBottom;
-	UPROPERTY(EditDefaultsOnly, Category = "Meshes")
-	UStaticMesh* ShieldMiddle;
-	UPROPERTY(EditDefaultsOnly, Category = "Meshes")
-	UStaticMesh* ShieldTop;
-
-private:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|Q", Meta = (AllowPrivateAccess))
-	float Ability_Q_RingDuration;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|Q", Meta = (AllowPrivateAccess))
-	float Ability_Q_Radius;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|Q", Meta = (AllowPrivateAccess))
-	float Ability_Q_Rate;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|Q", Meta = (AllowPrivateAccess))
-	float Ability_Q_FirstDelay;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|Q", Meta = (AllowPrivateAccess))
-	uint8 Ability_Q_NumParicles;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|Q", Meta = (AllowPrivateAccess))
-	float Ability_Q_ParticleScale;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|E", Meta = (AllowPrivateAccess))
-	float Ability_E_FirstDelay;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|E", Meta = (AllowPrivateAccess))
-	uint8 Ability_E_BoostStrength;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|E", Meta = (AllowPrivateAccess))
-	float Ability_E_ShieldDuration;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_BoostStrength;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_ExplodeDelay;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_StunDuration;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|R", Meta = (AllowPrivateAccess))
-	float Ability_R_Range;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|RMB", Meta = (AllowPrivateAccess))
-	float Ability_RMB_QuadraticScale;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Champion|AbilityStat|RMB", Meta = (AllowPrivateAccess))
-	float Ability_RMB_JumpScale;
+	void SpawnFreezeSegments_Multicast(FTransform Transform, FCachedParticleInfo ParticleInfo, FDamageInformation DamageInformation);
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Class", Meta = (AllowPrivateAccess))
@@ -219,7 +137,7 @@ private:
 	FVector Ability_RMB_ControlPoint = FVector();
 	FVector Ability_RMB_TargetLocation = FVector();
 
-	uint8 SplinePointIndex;
-
 	float TumblingRotationSpeed = 360;
+
+	FTimerHandle RecheckDataProviderHandle;
 };

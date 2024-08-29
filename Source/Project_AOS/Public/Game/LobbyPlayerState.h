@@ -19,7 +19,7 @@ class PROJECT_AOS_API ALobbyPlayerState : public APlayerState
 public:
 	ALobbyPlayerState();
 
-	FString GetPlayerUniqueIdString() const;
+	FName GetPlayerUniqueIdString() const;
 
 	void SetSelectedChampionIndex(int32 Index) { SelectedChampionIndex = Index; };
 
@@ -28,7 +28,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UFUNCTION(Server, Reliable)
-	void UpdateSelectedChampion_Server(int32 Index);
+	void UpdateSelectedChampion_Server(const int32 Index, const FName& InName);
 
 private:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "AAOSPlayerState", Meta = (AllowPrivateAccess))
@@ -39,11 +39,14 @@ public:
 	ETeamSideBase TeamSide;
 
 	UPROPERTY(Replicated, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess))
-	FString PlayerUniqueID;
+	FName PlayerUniqueID;
 
 	UPROPERTY(Replicated, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess))
 	int32 PlayerIndex;
 
 	UPROPERTY(Replicated, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess))
 	int32 SelectedChampionIndex;
+
+	UPROPERTY(Replicated, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess))
+	FName SelectedChampionName;
 };

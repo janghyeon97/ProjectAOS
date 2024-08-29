@@ -58,10 +58,10 @@ void ANonPlayerCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	AnimInstance = Cast<UNPCAnimInstance>(GetMesh()->GetAnimInstance());
-	if (::IsValid(AnimInstance))
+	UNPCAnimInstance* NPCAnimInstance = Cast<UNPCAnimInstance>(GetMesh()->GetAnimInstance());
+	if (::IsValid(NPCAnimInstance))
 	{
-		AnimInstance->OnNPCCanNextCombo.BindUObject(this, &ThisClass::Ability_LMB);
+		NPCAnimInstance->OnNPCCanNextCombo.BindUObject(this, &ThisClass::Ability_LMB);
 	}
 
 	AIController = Cast<ANPCAIController>(GetController());
@@ -74,80 +74,6 @@ void ANonPlayerCharacterBase::SetWidget(UUserWidgetBase* InUserWidgetBase)
 	if (::IsValid(StateBar))	
 	{
 		StateBar->InitializeStateBar(StatComponent);
-	}
-}
-
-void ANonPlayerCharacterBase::GetCrowdControl(EBaseCrowdControl InCondition, float InDuration, float InPercent)
-{
-	float Percent = FMath::Clamp<float>(InPercent, 0, 1);
-
-	if (::IsValid(AIController))
-	{
-		UBlackboardComponent* Blackboard = Cast<UBlackboardComponent>(AIController->GetBlackboardComponent());
-		if (::IsValid(Blackboard))
-		{
-			switch (InCondition)
-			{
-			case EBaseCrowdControl::None:
-
-				break;
-			case EBaseCrowdControl::Slow:
-				LastMovementSpeed = StatComponent->GetMovementSpeed();
-				ChangeMovementSpeed(0, LastMovementSpeed * (1 - Percent));
-
-				GetWorld()->GetTimerManager().SetTimer(
-					CrowdControlTimer,
-					FTimerDelegate::CreateLambda([&]()
-						{
-							ChangeMovementSpeed(0, LastMovementSpeed);
-						}
-					),
-					0.1f,
-					false,
-					InDuration
-				);
-
-				break;
-			case EBaseCrowdControl::Cripple:
-
-				break;
-			case EBaseCrowdControl::Silence:
-
-				break;
-			case EBaseCrowdControl::Blind:
-
-				break;
-			case EBaseCrowdControl::BlockedSight:
-
-				break;
-			case EBaseCrowdControl::Snare:
-
-				break;
-			case EBaseCrowdControl::Stun:
-				AnimInstance->StopAllMontages(0.1f);
-				AnimInstance->PlayMontage(Stun_Montage);
-				Blackboard->SetValueAsBool(AIController->IsGetCrowdControl, true);
-
-				GetWorld()->GetTimerManager().SetTimer(
-					CrowdControlTimer,
-					FTimerDelegate::CreateLambda([&]()
-						{
-							UBlackboardComponent* Blackboard = Cast<UBlackboardComponent>(AIController->GetBlackboardComponent());
-							Blackboard->SetValueAsBool(AIController->IsGetCrowdControl, false);
-							AnimInstance->StopAllMontages(0.3f);
-						}
-					),
-					0.1f,
-					false,
-					InDuration
-				);
-
-				break;
-			case EBaseCrowdControl::Taunt:
-
-				break;
-			}
-		}
 	}
 }
 

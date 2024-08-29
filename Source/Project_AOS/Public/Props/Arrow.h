@@ -20,6 +20,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 protected:
+	void OnArrowHit(const FHitResult& HitResult);
+	
 	UFUNCTION(NetMulticast, Reliable)
 	void OnArrowHit_NetMulticast(ECollisionChannel CollisionChannel);
 

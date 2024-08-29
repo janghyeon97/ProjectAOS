@@ -19,12 +19,17 @@ public:
 
     void SetMaxFigure(float InMaxFigure);
 
+    void SetBorderColor(FLinearColor InColor);
+
 protected:
     virtual void NativeConstruct() override;
 
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UW_Bar", Meta = (BindWidget))
     TObjectPtr<class UProgressBar> Bar;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UW_Bar", Meta = (BindWidget))
+    TObjectPtr<class UBorder> Border;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UW_Bar")
     float MaxFigure;

@@ -253,7 +253,7 @@ void ALobbyPlayerController::UpdateChatLog_Client_Implementation(const FString& 
 	ChatWindow->UpdateMessageLog(Text);
 }
 
-void ALobbyPlayerController::UpdatePlayerSelection_Server_Implementation(ETeamSideBase Team, int32 PlayerIndex, const FString& InPlayerName, int32 ChampionIndex, FLinearColor Color, bool bShowChampionDetails)
+void ALobbyPlayerController::UpdatePlayerSelection_Server_Implementation(ETeamSideBase Team, int32 PlayerIndex, const FName& InPlayerName, const FName& InChampionName, FLinearColor Color, bool bShowChampionDetails)
 {
 	if (::IsValid(LobbyGameMode) == false || ::IsValid(LobbyGameState) == false)
 	{
@@ -267,8 +267,8 @@ void ALobbyPlayerController::UpdatePlayerSelection_Server_Implementation(ETeamSi
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Server] ALobbyPlayerController::UpdateTeamSelectInfo_Server :: %d, %s, %d, %s, %s"),
-		PlayerIndex, *InPlayerName, ChampionIndex, *Color.ToString(), bShowChampionDetails ? TEXT("True") : TEXT("False"));
+	UE_LOG(LogTemp, Log, TEXT("[Server] ALobbyPlayerController::UpdateTeamSelectInfo_Server :: %d, %s, %s, %s, %s"),
+		PlayerIndex, *InPlayerName.ToString(), *InChampionName.ToString(), *Color.ToString(), bShowChampionDetails ? TEXT("True") : TEXT("False"));
 
 
 	const TArray<TObjectPtr<APlayerState>>& AllPlayers = LobbyGameState->PlayerArray;
@@ -277,33 +277,39 @@ void ALobbyPlayerController::UpdatePlayerSelection_Server_Implementation(ETeamSi
 		ALobbyPlayerController* LobbyPlayerController = Cast<ALobbyPlayerController>(CurrentPlayer->GetPlayerController());
 		if (LobbyPlayerController)
 		{
-			LobbyPlayerController->UpdatePlayerSelection_Client(Team, PlayerIndex, InPlayerName, ChampionIndex, Color, bShowChampionDetails);
+			LobbyPlayerController->UpdatePlayerSelection_Client(Team, PlayerIndex, InPlayerName, InChampionName, Color, bShowChampionDetails);
 		}
 	}
 }
 
-void ALobbyPlayerController::UpdatePlayerSelection_Client_Implementation(ETeamSideBase Team, int32 PlayerIndex, const FString& InPlayerName, int32 ChampionIndex, FLinearColor Color, bool bShowChampionDetails)
+void ALobbyPlayerController::UpdatePlayerSelection_Client_Implementation(ETeamSideBase Team, int32 PlayerIndex, const FName& InPlayerName, const FName& InChampionName, FLinearColor Color, bool bShowChampionDetails)
 {
-	if (::IsValid(AOSGameInstance) == false)
+	if (!::IsValid(AOSGameInstance))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[ALobbyPlayerController::UpdatePlayerSelection_Client] %s Player's AOSGameInstance is not valid."), *PlayerState->GetPlayerName());
 		return;
 	}
 
-	if (::IsValid(ChampionSelectUIInstance) == false)
+	if (!::IsValid(ChampionSelectUIInstance))
 	{
 		UE_LOG(LogTemp, Error, TEXT("[ALobbyPlayerController::UpdatePlayerSelection_Client] %s Player's ChampionSelectUIInstance is not valid."), *PlayerState->GetPlayerName());
 		return;
 	}
 
-	UTexture* ChampionImageTexture	= AOSGameInstance->GetCampionsListTableRow(ChampionIndex)->ChampionImage;
-	FString ChampionNameString		= AOSGameInstance->GetCampionsListTableRow(ChampionIndex)->ChampionName;
-	FString ChampionPositionString	= AOSGameInstance->GetCampionsListTableRow(ChampionIndex)->Position;
+	const FChampionsListRow* ChampionsListRow = AOSGameInstance->GetCampionsListTableRow(InChampionName);
+	if (!ChampionsListRow)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ALobbyPlayerController::UpdatePlayerSelection_Client] %s Failed to find ChampionsListRow for PlayerName: %s"), *PlayerState->GetPlayerName(), *InChampionName.ToString());
+		return;
+	}
 
-	UE_LOG(LogTemp, Log, TEXT("[Client] ALobbyPlayerController::UpdateTeamSelectInfo_Client :: %d, %s, %s, %s, %s, %s"),
-		PlayerIndex, *InPlayerName, *ChampionNameString, *ChampionPositionString, *Color.ToString(), bShowChampionDetails ? TEXT("True") : TEXT("False"));
+	UTexture* ChampionImageTexture = ChampionsListRow->ChampionImage;
+	FName ChampionPositionString = ChampionsListRow->Position;
 
-	ChampionSelectUIInstance->UpdatePlayerSelection(Team, PlayerIndex, InPlayerName, ChampionImageTexture, ChampionNameString, ChampionPositionString, Color, bShowChampionDetails);
+	UE_LOG(LogTemp, Log, TEXT("[Client] ALobbyPlayerController::UpdatePlayerSelection_Client :: %d, %s, %s, %s, %s, %s"),
+		PlayerIndex, *InPlayerName.ToString(), *InChampionName.ToString(), *ChampionPositionString.ToString(), *Color.ToString(), bShowChampionDetails ? TEXT("True") : TEXT("False"));
+
+	ChampionSelectUIInstance->UpdatePlayerSelection(Team, PlayerIndex, InPlayerName, ChampionImageTexture, InChampionName, ChampionPositionString, Color, bShowChampionDetails);
 }
 
 void ALobbyPlayerController::UpdateBanPickTime_Client_Implementation(float InCurrentDraftTime, float InMaxDraftTime)

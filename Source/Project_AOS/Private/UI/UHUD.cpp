@@ -30,9 +30,10 @@ void UUHUD::NativeOnInitialized()
 
 }
 
-void UUHUD::InitializeHUD(const int32 Index)
+void UUHUD::InitializeHUD(const int32 InChampionIndex, const FName& InChampionName)
 {
-	ChampionIndex = Index;
+	ChampionIndex = InChampionIndex;
+	ChampionName = InChampionName;
 
 	// Initialize ability levels visibility
 	InitializeAbilityLevels(EAbilityID::Ability_Q);
@@ -185,30 +186,28 @@ void UUHUD::InitializeImages()
 		return;
 	}
 
-	if (GameInstance->GetCampionsListTableRow(ChampionIndex) == nullptr)
+	if (GameInstance->GetCampionsListTableRow(ChampionName) == nullptr)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[UHUD::InitializeAbilityImage] CampionsList %d Index is not vaild"), ChampionIndex);
+		UE_LOG(LogTemp, Error, TEXT("[UHUD::InitializeAbilityImage] CampionsList %s Index is not vaild"), *ChampionName.ToString());
 		return;
 	}
 
-	PlayerCharacterName = GameInstance->GetCampionsListTableRow(ChampionIndex)->ChampionName;
-
-	UpdateChampionText(PlayerCharacterName);
+	UpdateChampionText(ChampionName);
 
 	UTexture* Ability_Q_Texture = Cast<UTexture>(StaticLoadObject(UTexture::StaticClass(), NULL,
-		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Ability_Q.T_Ability_Q"), *PlayerCharacterName)));
+		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Ability_Q.T_Ability_Q"), *ChampionName.ToString())));
 
 	UTexture* Ability_E_Texture = Cast<UTexture>(StaticLoadObject(UTexture::StaticClass(), NULL,
-		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Ability_E.T_Ability_E"), *PlayerCharacterName)));
+		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Ability_E.T_Ability_E"), *ChampionName.ToString())));
 
 	UTexture* Ability_R_Texture = Cast<UTexture>(StaticLoadObject(UTexture::StaticClass(), NULL,
-		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Ability_R.T_Ability_R"), *PlayerCharacterName)));
+		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Ability_R.T_Ability_R"), *ChampionName.ToString())));
 
 	UTexture* Ability_LMB_Texture = Cast<UTexture>(StaticLoadObject(UTexture::StaticClass(), NULL,
-		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Primary_LMB.T_Primary_LMB"), *PlayerCharacterName)));
+		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Primary_LMB.T_Primary_LMB"), *ChampionName.ToString())));
 
 	UTexture* Ability_RMB_Texture = Cast<UTexture>(StaticLoadObject(UTexture::StaticClass(), NULL,
-		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Primary_RMB.T_Primary_RMB"), *PlayerCharacterName)));
+		*FString::Printf(TEXT("/Game/ProjectAOS/Characters/%s/Images/T_Primary_RMB.T_Primary_RMB"), *ChampionName.ToString())));
 
 
 	MaterialRef.Empty();
@@ -249,7 +248,7 @@ void UUHUD::InitializeImages()
 	CharacterImageMaterialRef = ChampionImage->GetDynamicMaterial();
 	if (CharacterImageMaterialRef)
 	{
-		UTexture* Texture = GameInstance->GetCampionsListTableRow(ChampionIndex)->ChampionImage;
+		UTexture* Texture = GameInstance->GetCampionsListTableRow(ChampionName)->ChampionImage;
 		if (::IsValid(Texture))
 		{
 			CharacterImageMaterialRef->SetTextureParameterValue(FName("Image"), Texture);
@@ -619,7 +618,7 @@ void UUHUD::UpdateMagicResistanceText(float InOldMR, float InNewMR)
 
 void UUHUD::UpdateAttackSpeedText(float InOldAS, float InNewAS)
 {
-	FString AttackSpeedString = FString::Printf(TEXT("%.1f"), InNewAS);
+	FString AttackSpeedString = FString::Printf(TEXT("%.2f"), InNewAS);
 
 	AttackSpeedText->SetText(FText::FromString(AttackSpeedString));
 }
@@ -666,9 +665,9 @@ void UUHUD::UpdateMPRegenText(float InOldMPRegen, float InNewMPRegen)
 	MPRegenText->SetText(FText::FromString(MPRegenString));
 }
 
-void UUHUD::UpdateChampionText(const FString& NewString)
+void UUHUD::UpdateChampionText(const FName& NewString)
 {
-	ChampionNameText->SetText(FText::FromString(NewString));
+	ChampionNameText->SetText(FText::FromName(NewString));
 }
 
 void UUHUD::UpdateInventory(const TArray<FItemInformation>& Items)
@@ -743,7 +742,7 @@ void UUHUD::UpdateRespawnTimeText(int32 InPlayerIndex, float RemainingTime)
 		FString RemainingTimeString = FString::Printf(TEXT("%d"), FMath::CeilToInt(RemainingTime));
 		RespawnTimeText->SetText(FText::FromString(RemainingTimeString));
 
-		if (RemainingTime <= 0)
+		if (RemainingTime <= 0.1f)
 		{
 			RespawnTimeImage->SetVisibility(ESlateVisibility::Hidden);
 			RespawnTimeText->SetVisibility(ESlateVisibility::Hidden);

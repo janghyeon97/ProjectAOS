@@ -38,3 +38,13 @@ void UMinionAnimInstance::PlayMontage(UAnimMontage* Montage, float PlayRate)
 		Montage_Play(Montage, PlayRate, EMontagePlayReturnType::Duration, 0.0f, true);
 	}
 }
+
+void UMinionAnimInstance::AnimNotify_CanNextCombo()
+{
+
+}
+
+void UMinionAnimInstance::AnimNotify_CheckHit_LMB()
+{
+	OwnerCharacter->Ability_LMB_CheckHit();
+}

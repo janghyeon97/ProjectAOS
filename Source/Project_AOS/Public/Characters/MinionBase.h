@@ -24,9 +24,13 @@ protected:
 	virtual void PostInitializeComponents() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	virtual void InitializeCharacterResources() override;
+
 	// Character death and related functions
 	UFUNCTION()
 	virtual void OnCharacterDeath();
+	UFUNCTION(NetMulticast, Reliable)
+	virtual void OnCharacterDeath_Multicast();
 	UFUNCTION()
 	virtual void MontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
@@ -34,23 +38,16 @@ protected:
 	void EnableRagdoll();
 	void ApplyDirectionalImpulse();
 
+	virtual void Ability_LMB() override;
+	virtual void Ability_LMB_CheckHit() override;
+	void AttackEnded();
+
 	// Experience distribution
 	void FindNearbyPlayers(TArray<ACharacterBase*>& PlayerCharacters, ETeamSideBase InTeamSide, float Distance);
 	void DistributeExperience(ACharacterBase* Eliminator, const TArray<ACharacterBase*>& NearbyEnemies);
 
-	// Animation Montages
-	UFUNCTION(Server, Reliable)
-	void StopAllMontages_Server(float BlendOut);
-	UFUNCTION(NetMulticast, Reliable)
-	void StopAllMontages_NetMulticast(float BlendOut);
-	UFUNCTION(Server, Reliable)
-	void PlayMontage_Server(UAnimMontage* Montage, float PlayRate);
-	UFUNCTION(NetMulticast, Reliable)
-	void PlayMontage_NetMulticast(UAnimMontage* Montage, float PlayRate);
-	UFUNCTION(Server, Reliable)
-	void MontageJumpToSection_Server(UAnimMontage* Montage, FName SectionName, float PlayRate);
-	UFUNCTION(NetMulticast, Reliable)
-	void MontageJumpToSection_NetMulticast(UAnimMontage* Montage, FName SectionName, float PlayRate);
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastApplyImpulse(FVector Impulse);
 
 	UFUNCTION()
 	void OnRep_SkeletalMesh();
@@ -66,16 +63,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Bounty")
 	void SetGoldBounty(int32 NewGoldBounty);
 
-	void SetAnimMontages(const TMap<FString, UAnimMontage*>& MontageMap);
-
 	// Direction calculation
 	UFUNCTION(BlueprintCallable, Category = "Direction")
 	int32 GetRelativeDirection(AActor* OtherActor) const;
 
 protected:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MinionBase")
-	TObjectPtr<class UMinionAnimInstance> AnimInstance;
-
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "MinionBase")
 	TObjectPtr<class AMinionAIController> AIController;
 
@@ -83,14 +75,20 @@ protected:
 	TObjectPtr<class UCharacterWidgetComponent> WidgetComponent;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "MinionBase", Meta = (AllowPrivateAccess))
-	TObjectPtr<class UUW_StateBar> StateBar;
+	TObjectPtr<class UUW_HPBar> HPBar;
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	AActor* SplineActor;
+
 	UPROPERTY()
-	EMinionType MinionType = EMinionType::None;
+	FName MinionType;
 
 	UPROPERTY(ReplicatedUsing = OnRep_SkeletalMesh)
 	USkeletalMesh* ReplicatedSkeletalMesh;
+
+	UPROPERTY()
+	int32 RelativeDirection = 0;
 
 	// Experience sharing
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -99,27 +97,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<int32, float> ShareFactor;
 
-	// Animation Montages
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TMap<FString, UAnimMontage*> Montages;
-
 	// Bounty variables
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bounty", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bounty")
 	float ExpBounty;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bounty", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bounty")
 	int32 GoldBounty;
 
 	// Ragdoll and fade out
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MinionBase", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MinionBase")
 	float RagdollBlendTime = 0.2f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MinionBase", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MinionBase")
 	float ImpulseStrength = 1000.0f;
+
+	UPROPERTY()
+	float MaxChaseDistance = 2000.f;
 
 	FTimerHandle DeathMontageTimerHandle;
 	FTimerHandle FadeOutTimerHandle;
 
 	float CurrentFadeDeath = 0.f;
 	float FadeOutDuration = 1.0f;
+
+	uint8 Ability_LMB_CurrentComboCount = 1;
+	uint8 Ability_LMB_MaxComboCount = 4;
 };

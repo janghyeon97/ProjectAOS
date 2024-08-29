@@ -37,7 +37,7 @@ public:
 	void RemoveLoadingScreen();
 
 	UFUNCTION(Client, Reliable)
-	void InitializeHUD(const int CharacterIndex);
+	void InitializeHUD(const int InChampionIndex, const FName& InChampionName);
 
 	UFUNCTION(Client, Reliable)
 	void InitializeItemShop();

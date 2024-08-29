@@ -31,13 +31,13 @@ public:
 
 protected:
     UFUNCTION()
-    virtual void OnHit(FDamageInfomation& DamageInfomation);
+    virtual void OnHit(FDamageInformation& DamageInformation);
 
     UFUNCTION()
-    virtual void OnAttack(FDamageInfomation& DamageInfomation);
+    virtual void OnAttack(FDamageInformation& DamageInformation);
 
     UFUNCTION()
-    virtual void OnAbilityEffects(FDamageInfomation& DamageInfomation);
+    virtual void OnAbilityEffects(FDamageInformation& DamageInformation);
 
     UFUNCTION()
     virtual void OnReceiveDamageEntered(bool& bResult);
